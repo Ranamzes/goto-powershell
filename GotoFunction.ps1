@@ -22,7 +22,7 @@ function Import-Aliases {
 function _goto_print_similar {
     param([string]$input)
     # Filter aliases to strictly include only those that contain the input string
-    $similar = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "*$input*" }
+    $similar = $Global:DirectoryAliases.Keys | Where-Object { $_ -match "$input" }
 
     if ($similar.Count -eq 1) {
         # If only one similar alias, navigate directly
@@ -32,21 +32,23 @@ function _goto_print_similar {
         Set-Location $path
     }
     elseif ($similar.Count -gt 1) {
+        # Sort the aliases by the start index of the match
+        $sortedSimilar = $similar | Sort-Object { [regex]::Match($_, $input).Index }
+
         Write-Host "Did you mean one of these? Type the number to navigate, or press ENTER to cancel:"
-        # Display options, requiring user interaction to choose
         $index = 1
-        foreach ($alias in $similar) {
+        foreach ($alias in $sortedSimilar) {
             Write-Host "[$index]: $alias"
             $index++
         }
 
         # Ask user for choice
-        $choice = Read-Host "Enter your choice (1-$($similar.Count))"
+        $choice = Read-Host "Enter your choice (1-$($sortedSimilar.Count))"
         if ([string]::IsNullOrWhiteSpace($choice)) {
             Write-Host "No selection made. No action taken."
         }
-        elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $similar.Count) {
-            $selectedAlias = $similar[[int]$choice - 1]
+        elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $sortedSimilar.Count) {
+            $selectedAlias = $sortedSimilar[[int]$choice - 1]
             $path = $Global:DirectoryAliases[$selectedAlias]
             Write-Host "Navigating to alias '$selectedAlias' at path '$path'."
             Set-Location $path
