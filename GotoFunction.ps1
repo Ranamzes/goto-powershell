@@ -21,7 +21,8 @@ function Import-Aliases {
 
 function _goto_print_similar {
     param([string]$input)
-    $similar = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "*$input*" } | Sort-Object
+    # Filter aliases to include only those that contain the input string
+    $similar = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "*$input*" }
 
     if ($similar.Count -eq 1) {
         # If only one similar alias, navigate directly
@@ -57,6 +58,7 @@ function _goto_print_similar {
         Write-Host "No similar aliases found."
     }
 }
+
 
 
 
