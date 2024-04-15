@@ -43,8 +43,10 @@ function goto {
 	# Handle predefined commands
 	switch ($Command) {
 		'r' {
-			$Global:DirectoryAliases[$Alias] = $Path
-			Write-Host "Alias $Alias registered for path $Path."
+			# Resolve the path to an absolute path
+			$resolvedPath = Resolve-Path -Path $Path | Select-Object -ExpandProperty Path
+			$Global:DirectoryAliases[$Alias] = $resolvedPath
+			Write-Host "Alias $Alias registered for path $resolvedPath."
 			Save-Aliases
 		}
 		'u' {
