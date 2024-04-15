@@ -34,7 +34,7 @@ This script will:
 
 To save a directory path under a memorable alias:
 ```powershell
- goto -r <alias> <path>
+ goto r <alias> <path>
 ```
 
 ### Navigate Using an Alias
@@ -48,42 +48,42 @@ goto <alias>
 
 To list all registered aliases and their associated paths:
 ```powershell
-goto -l
+goto l
 ```
 
 ### Unregister an Alias
 
 To remove a previously registered alias:
 ```powershell
-goto -u <alias>
+goto u <alias>
 ```
 
 ### Expand an Alias
 
 To see the full directory path associated with an alias:
 ```powershell
-goto -x <alias>
+goto x <alias>
 ```
 
 ### Cleanup Invalid Aliases
 
 To remove all aliases pointing to non-existent directories:
 ```powershell
-goto -c
+goto c
 ```
 
 ### Push Current Directory and Navigate
 
 To save your current directory and navigate to another:
 ```powershell
-goto -p <alias>
+goto p <alias>
 ```
 
 ### Pop to Previous Directory
 
 To return to the directory saved before the last navigation:
 ```powershell
-goto -o
+goto o
 ```
 
 ### Examples
@@ -92,25 +92,25 @@ Here are some practical examples to demonstrate how to use the goto function:
 
 - Setting up a workspace:
 ```powershell
-goto -r work "C:\Users\UserName\Documents\Work"
+goto r work "C:\Users\UserName\Documents\Work"
 goto work
 ```
 
 - Switching between projects quickly:
 ```powershell
 # Register a project directory and a common resources directory
-goto -r proj "D:\Projects\CurrentProject"
-goto -r resources "D:\Resources"
+goto r proj "D:\Projects\CurrentProject"
+goto r resources "D:\Resources"
 
 # Navigate to the project
 goto proj
 
 # Assume you are now working within the project and need to check something in resources
 # Push the current project directory onto the stack and navigate to resources
-goto -p resources
+goto p resources
 
 # After finishing up in the resources directory, pop the stack to return to the project
-goto -o
+goto o
 ```
 
 

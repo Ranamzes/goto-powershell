@@ -10,8 +10,11 @@ Invoke-WebRequest -Uri $url -OutFile $scriptPath
 
 # Add the script to the user's PowerShell profile
 $profileContent = @"
-# Auto-generated import for Goto function
-. '$scriptPath'
+
+  # Auto-generated import for Goto function
+  $scriptPath = Join-Path $env:USERPROFILE "PowerShellScripts\GotoFunction.ps1"
+  . $scriptPath
+  Load-Aliases
 "@
 
 if (-Not (Select-String -Path $PROFILE -Pattern "GotoFunction.ps1" -Quiet)) {
