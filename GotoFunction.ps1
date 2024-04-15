@@ -21,21 +21,24 @@ function Import-Aliases {
 
 function _goto_print_similar {
     param([string]$input)
-    # Filter aliases to strictly include only those that contain the input string
-    $similar = $Global:DirectoryAliases.Keys | Where-Object { $_ -match "$input" }
 
-    if ($similar.Count -eq 1) {
-        # If only one similar alias, navigate directly
-        $selectedAlias = $similar[0]
-        $path = $Global:DirectoryAliases[$selectedAlias]
-        Write-Host "Only one matching alias found: '$selectedAlias'. Navigating to '$path'."
+    # Check if input exactly matches an alias
+    if ($Global:DirectoryAliases.ContainsKey($input)) {
+        $path = $Global:DirectoryAliases[$input]
+        Write-Host "Navigating to alias '$input' at path '$path'."
         Set-Location $path
+        return
     }
-    elseif ($similar.Count -gt 1) {
+
+    # Filter aliases to include only those that contain the input string
+    $similar = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "*$input*" }
+
+    if ($similar.Count -gt 1) {
         # Sort the aliases by the start index of the match
         $sortedSimilar = $similar | Sort-Object { [regex]::Match($_, $input).Index }
 
         Write-Host "Did you mean one of these? Type the number to navigate, or press ENTER to cancel:"
+
         $index = 1
         foreach ($alias in $sortedSimilar) {
             Write-Host "[$index]: $alias"
@@ -44,6 +47,7 @@ function _goto_print_similar {
 
         # Ask user for choice
         $choice = Read-Host "Enter your choice (1-$($sortedSimilar.Count))"
+
         if ([string]::IsNullOrWhiteSpace($choice)) {
             Write-Host "No selection made. No action taken."
         }
@@ -56,7 +60,11 @@ function _goto_print_similar {
         else {
             Write-Host "Invalid selection. No action taken."
         }
-    } else {
+    }
+    elseif ($similar.Count -eq 1) {
+        Write-Host "No exact match found, but one similar alias: $($similar[0])"
+    }
+    else {
         Write-Host "No similar aliases found."
     }
 }
