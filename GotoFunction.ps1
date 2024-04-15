@@ -24,18 +24,33 @@ function _goto_print_similar {
     $similar = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "*$input*" }
 
     if ($similar) {
-        $selection = $similar | Out-GridView -Title "Did you mean one of these? Select to navigate." -PassThru
-        if ($selection) {
-            $path = $Global:DirectoryAliases[$selection]
-            Write-Host "Navigating to alias '$selection' at path '$path'."
-            Set-Location $path
-        } else {
+        Write-Host "Did you mean one of these? Type the number to navigate, or press ENTER to cancel:"
+        # Display options
+        $index = 1
+        foreach ($alias in $similar) {
+            Write-Host "[$index]: $alias"
+            $index++
+        }
+
+        # Ask user for choice
+        $choice = Read-Host "Enter your choice (1-$($similar.Count))"
+        if ([string]::IsNullOrWhiteSpace($choice)) {
             Write-Host "No selection made. No action taken."
+        }
+        elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $similar.Count) {
+            $selectedAlias = $similar[[int]$choice - 1]
+            $path = $Global:DirectoryAliases[$selectedAlias]
+            Write-Host "Navigating to alias '$selectedAlias' at path '$path'."
+            Set-Location $path
+        }
+        else {
+            Write-Host "Invalid selection. No action taken."
         }
     } else {
         Write-Host "No similar aliases found."
     }
 }
+
 
 function goto {
 	[CmdletBinding()]
@@ -104,15 +119,23 @@ function goto {
 			Save-Aliases
 		}
 		'p' {
+				# Push the current location onto the stack
 				Push-Location
-				Set-Location $Global:DirectoryAliases[$Alias]
-				Write-Host "Pushed current directory and moved to $Alias."
+				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
+						$path = $Global:DirectoryAliases[$Alias]
+						Write-Host "Pushed current directory and moved to '$Alias' at path '$path'."
+						Set-Location $path
+				} else {
+						Write-Host "Alias '$Alias' does not exist. Pushed current directory."
+				}
 		}
 		'o' {
-				if ((Get-LocationStack).Count -gt 0) {
+				# Pop the location off the stack
+				try {
 						Pop-Location
-				} else {
-						Write-Warning "Directory stack is empty."
+						Write-Host "Popped and moved to the top location on the stack."
+				} catch {
+						Write-Warning "Directory stack is empty or an error occurred."
 				}
 		}
 		default {
