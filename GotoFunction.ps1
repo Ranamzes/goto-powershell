@@ -2,22 +2,42 @@ $Global:DirectoryAliases = @{}
 $Global:DirectoryStack = @{}
 
 function Save-Aliases {
-	$path = Join-Path $env:USERPROFILE "PowerShellScripts\DirectoryAliases.xml"
-	$Global:DirectoryAliases | Export-Clixml -Path $path
-	Write-Host "Aliases saved to $path"
+    $path = Join-Path $env:USERPROFILE "PowerShellScripts\DirectoryAliases.json"
+    $Global:DirectoryAliases | ConvertTo-Json | Set-Content -Path $path
+    Write-Host "Aliases saved to $path"
 }
 
-function Load-Aliases {
-	$path = Join-Path $env:USERPROFILE "PowerShellScripts\DirectoryAliases.xml"
-	if (Test-Path $path) {
-		$Global:DirectoryAliases = Import-Clixml -Path $path
-	}
- else {
-		Write-Host "No aliases file found at $path. Starting with an empty aliases list."
-		$Global:DirectoryAliases = @{}
-	}
+function Import-Aliases {
+    $path = Join-Path $env:USERPROFILE "PowerShellScripts\DirectoryAliases.json"
+    if (Test-Path $path) {
+        $jsonContent = Get-Content -Path $path | ConvertFrom-Json
+        $Global:DirectoryAliases = @{}
+        foreach ($entry in $jsonContent.PSObject.Properties) {
+            $Global:DirectoryAliases[$entry.Name] = $entry.Value
+        }
+    } else {
+        Write-Host "No aliases file found at $path. Starting with an empty aliases list."
+        $Global:DirectoryAliases = @{}
+    }
 }
 
+function _goto_print_similar {
+    param([string]$input)
+    $similar = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "*$input*" }
+
+    if ($similar) {
+        $selection = $similar | Out-GridView -Title "Did you mean one of these? Select to navigate." -PassThru
+        if ($selection) {
+            $path = $Global:DirectoryAliases[$selection]
+            Write-Host "Navigating to alias '$selection' at path '$path'."
+            Set-Location $path
+        } else {
+            Write-Host "No selection made. No action taken."
+        }
+    } else {
+        Write-Host "No similar aliases found."
+    }
+}
 
 function goto {
 	[CmdletBinding()]
@@ -86,24 +106,39 @@ function goto {
 			Save-Aliases
 		}
 		'p' {
-			$Global:DirectoryStack += (Get-Location).Path
-			Set-Location $Global:DirectoryAliases[$Alias]
-			Write-Host "Pushed current directory and moved to $Alias."
+				Push-Location
+				Set-Location $Global:DirectoryAliases[$Alias]
+				Write-Host "Pushed current directory and moved to $Alias."
 		}
 		'o' {
-			if ($Global:DirectoryStack.Count -gt 0) {
-				$popLocation = $Global:DirectoryStack[-1]
-				$Global:DirectoryStack = $Global:DirectoryStack[0..($Global:DirectoryStack.Count - 2)]
-				Set-Location $popLocation
-				Write-Host "Popped and moved to $popLocation."
-			}
-			else {
-				Write-Warning "Directory stack is empty."
-			}
+				if ((Get-LocationStack).Count -gt 0) {
+						Pop-Location
+				} else {
+						Write-Warning "Directory stack is empty."
+				}
 		}
 		default {
 			Write-Host "Usage: goto [-r <alias> <path> | -u <alias> | -l | -x <alias> | -c | -p <alias> | -o | <alias>]"
 			_goto_print_similar $Command
 		}
 	}
+}
+
+Register-ArgumentCompleter -CommandName 'goto' -ScriptBlock {
+    param($commandName, $wordToComplete, $commandAst, $fakeBoundParameters)
+    # Single-letter commands
+    $commands = 'r', 'u', 'l', 'x', 'c', 'p', 'o'  # Register, Unregister, List, eXpand, Cleanup, Push, Pop
+    $aliases = $Global:DirectoryAliases.Keys
+
+    if ($wordToComplete -eq 'u' -or $wordToComplete -eq 'x') {
+        # If user starts typing 'u' for unregister or 'x' for expand, suggest aliases
+        $aliases | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+        }
+    } else {
+        # If user starts typing any other command, suggest commands
+        $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', "Perform $_ operation")
+        }
+    }
 }
