@@ -16,7 +16,6 @@ function Import-Aliases {
             $Global:DirectoryAliases[$entry.Name] = $entry.Value
         }
     } else {
-        Write-Host "No aliases file found at $path. Starting with an empty aliases list."
         $Global:DirectoryAliases = @{}
     }
 }
