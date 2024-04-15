@@ -1,4 +1,4 @@
-# PowerShell Goto Function
+# PowerShell goto Function
 
 The PowerShell `goto` function provides an easy way to manage and navigate to your frequently used directories using simple aliases. This function mimics the behavior of the Unix `goto` command, making it easier to switch directories in a more organized manner.
 
@@ -10,7 +10,10 @@ The PowerShell `goto` function provides an easy way to manage and navigate to yo
 - **Unregister Aliases:** Remove aliases you no longer need.
 - **Expand Aliases:** Display the full path of a registered alias.
 - **Cleanup Aliases:** Remove aliases pointing to non-existent directories.
+- **Push Directory onto Stack:** Save your current directory before moving to another.
+- **Pop Directory from Stack:** Return to the most recently saved directory.
 
+Installation
 ## Installation
 
 To install the `goto` function in your PowerShell environment, run the following command in your PowerShell terminal. This command will automatically download and configure everything needed:
@@ -30,32 +33,86 @@ This script will:
 ### Register a New Alias
 
 To save a directory path under a memorable alias:
-`powershell Goto -r <alias> <path>`
+```powershell
+ goto -r <alias> <path>
+```
 
 ### Navigate Using an Alias
 
 To change to a directory associated with an alias:
-`powershell Goto <alias>`
+```powershell
+goto <alias>
+```
 
 ### List All Aliases
 
 To list all registered aliases and their associated paths:
-`powershell Goto -l`
+```powershell
+goto -l
+```
 
 ### Unregister an Alias
 
 To remove a previously registered alias:
-`powershell Goto -u <alias>`
+```powershell
+goto -u <alias>
+```
 
 ### Expand an Alias
 
 To see the full directory path associated with an alias:
-`powershell Goto -x <alias>`
+```powershell
+goto -x <alias>
+```
 
 ### Cleanup Invalid Aliases
 
 To remove all aliases pointing to non-existent directories:
-`powershell Goto -c`
+```powershell
+goto -c
+```
+
+### Push Current Directory and Navigate
+
+To save your current directory and navigate to another:
+```powershell
+goto -p <alias>
+```
+
+### Pop to Previous Directory
+
+To return to the directory saved before the last navigation:
+```powershell
+goto -o
+```
+
+### Examples
+
+Here are some practical examples to demonstrate how to use the goto function:
+
+- Setting up a workspace:
+```powershell
+goto -r work "C:\Users\UserName\Documents\Work"
+goto work
+```
+
+- Switching between projects quickly:
+```powershell
+# Register a project directory and a common resources directory
+goto -r proj "D:\Projects\CurrentProject"
+goto -r resources "D:\Resources"
+
+# Navigate to the project
+goto proj
+
+# Assume you are now working within the project and need to check something in resources
+# Push the current project directory onto the stack and navigate to resources
+goto -p resources
+
+# After finishing up in the resources directory, pop the stack to return to the project
+goto -o
+```
+
 
 ## Support
 

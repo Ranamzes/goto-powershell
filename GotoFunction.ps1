@@ -1,7 +1,7 @@
 @"
 `$$Global:DirectoryAliases = @{}
 
-function Goto {
+function goto {
     param(
         [Parameter(Mandatory=`$$false, Position=0)]
         [string]`$$Command = "",
@@ -44,13 +44,28 @@ function Goto {
                 `$$Global:DirectoryAliases.Remove(`$_)
             }
         }
+        "-p" {
+            $Global:DirectoryStack += (Get-Location).Path
+            Set-Location $Global:DirectoryAliases[$Alias]
+            Write-Host "Pushed current directory and moved to '$Alias'."
+        }
+        "-o" {
+            if ($Global:DirectoryStack.Count -gt 0) {
+                $popLocation = $Global:DirectoryStack[-1]
+                $Global:DirectoryStack = $Global:DirectoryStack[0..($Global:DirectoryStack.Count-2)]
+                Set-Location $popLocation
+                Write-Host "Popped and moved to '$popLocation'."
+            } else {
+                Write-Warning "Directory stack is empty."
+            }
+        }
         default {
             if (`$$Global:DirectoryAliases.ContainsKey(`$$Command)) {
                 Set-Location `$$Global:DirectoryAliases[`$$Command]
             } elseif (`$$Command) {
                 Write-Warning "Alias '`$$Command' does not exist."
             } else {
-                Write-Host "Usage: Goto [-r <alias> <path> | -u <alias> | -l | -x <alias> | -c | <alias>]"
+                Write-Host "Usage: goto [-r <alias> <path> | -u <alias> | -l | -x <alias> | -c | -p <alias> | -o | <alias>]"
             }
         }
     }
