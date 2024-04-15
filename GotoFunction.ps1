@@ -21,11 +21,18 @@ function Import-Aliases {
 
 function _goto_print_similar {
     param([string]$input)
-    $similar = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "*$input*" }
+    $similar = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "*$input*" } | Sort-Object
 
-    if ($similar) {
+    if ($similar.Count -eq 1) {
+        # If only one similar alias, navigate directly
+        $selectedAlias = $similar[0]
+        $path = $Global:DirectoryAliases[$selectedAlias]
+        Write-Host "Only one matching alias found: '$selectedAlias'. Navigating to '$path'."
+        Set-Location $path
+    }
+    elseif ($similar.Count -gt 1) {
         Write-Host "Did you mean one of these? Type the number to navigate, or press ENTER to cancel:"
-        # Display options
+        # Display options, sorted by similarity
         $index = 1
         foreach ($alias in $similar) {
             Write-Host "[$index]: $alias"
@@ -50,6 +57,7 @@ function _goto_print_similar {
         Write-Host "No similar aliases found."
     }
 }
+
 
 
 function goto {
