@@ -4,7 +4,6 @@ $Global:DirectoryStack = @{}
 function Save-Aliases {
     $path = Join-Path $env:USERPROFILE "PowerShellScripts\DirectoryAliases.json"
     $Global:DirectoryAliases | ConvertTo-Json | Set-Content -Path $path
-    Write-Host "Aliases saved to $path"
 }
 
 function Import-Aliases {
