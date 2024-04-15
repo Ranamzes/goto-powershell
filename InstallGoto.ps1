@@ -14,7 +14,7 @@ $profileContent = @"
 # Auto-generated import for Goto function
 
 . `"$scriptPath`"
-Load-Aliases
+Import-Aliases
 "@
 
 # Check if the profile already contains a reference to GotoFunction.ps1 and add if not
