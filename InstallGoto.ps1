@@ -1,5 +1,5 @@
 # Define the URL to the raw version of GotoFunction.ps1 on GitHub
-$url = "https://raw.githubusercontent.com/ranamzes/goto-powershell/GotoFunction.ps1"
+$url = "https://raw.githubusercontent.com/Ranamzes/goto-powershell/main/GotoFunction.ps1"
 $scriptPath = "$HOME\PowerShellScripts\GotoFunction.ps1"
 
 # Create the directory if it doesn't exist
