@@ -1,26 +1,26 @@
 # Define the URL to the raw version of GotoFunction.ps1 on GitHub
 $url = "https://raw.githubusercontent.com/Ranamzes/goto-powershell/main/GotoFunction.ps1"
-$scriptPath = "$HOME\PowerShellScripts\GotoFunction.ps1"
+$scriptDirectory = "$HOME\PowerShellScripts"
+$scriptPath = Join-Path -Path $scriptDirectory -ChildPath "GotoFunction.ps1"
 
 # Create the directory if it doesn't exist
-New-Item -ItemType Directory -Path "$HOME\PowerShellScripts" -Force
+New-Item -ItemType Directory -Path $scriptDirectory -Force
 
 # Download the script from GitHub
 Invoke-WebRequest -Uri $url -OutFile $scriptPath
 
-# Add the script to the user's PowerShell profile
+# Define the content to be added to the PowerShell profile
 $profileContent = @"
+# Auto-generated import for Goto function
 
-  # Auto-generated import for Goto function
-  $scriptPath = Join-Path $env:USERPROFILE "PowerShellScripts\GotoFunction.ps1"
-  . $scriptPath
-  Load-Aliases
+. `"$scriptPath`"
+Load-Aliases
 "@
 
+# Check if the profile already contains a reference to GotoFunction.ps1 and add if not
 if (-Not (Select-String -Path $PROFILE -Pattern "GotoFunction.ps1" -Quiet)) {
-	$profileContent | Out-File -FilePath $PROFILE -Append -Encoding UTF8
-	Write-Host "Goto function has been added to your PowerShell profile."
-}
-else {
-	Write-Host "Goto function is already registered in your PowerShell profile."
+    Add-Content -Path $PROFILE -Value $profileContent
+    Write-Host "Goto function has been added to your PowerShell profile."
+} else {
+    Write-Host "Goto function is already registered in your PowerShell profile."
 }
