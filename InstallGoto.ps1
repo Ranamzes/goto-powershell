@@ -11,8 +11,8 @@ Invoke-WebRequest -Uri $url -OutFile $scriptPath
 
 # Define the content to be added to the PowerShell profile
 $profileContent = @"
-# Auto-generated import for Goto function
 
+# Auto-generated import for Goto function
 . `"$scriptPath`"
 Import-Aliases
 "@
