@@ -16,7 +16,7 @@ The PowerShell `goto` function provides an easy way to manage and navigate to yo
 To install the `goto` function in your PowerShell environment, run the following command in your PowerShell terminal. This command will automatically download and configure everything needed:
 
 ```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/YourUsername/YourRepository/main/InstallGoto.ps1" -OutFile "$env:TEMP\InstallGoto.ps1"; & "$env:TEMP\InstallGoto.ps1"; Remove-Item "$env:TEMP\InstallGoto.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Ranamzes/goto-powershell/InstallGoto.ps1" -OutFile "$env:TEMP\InstallGoto.ps1"; & "$env:TEMP\InstallGoto.ps1"; Remove-Item "$env:TEMP\InstallGoto.ps1"
 ```
 
 This script will:
