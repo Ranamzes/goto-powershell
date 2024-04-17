@@ -31,82 +31,67 @@ function _goto_print_similar {
 	param([string]$aliasInput)
 
 	$normalizedInput = $aliasInput.ToLower()
-
-	# Создание списка алиасов с подсчетом совпадений каждого символа ввода в алиасе
 	$matches = $Global:DirectoryAliases.Keys | Where-Object {
 		$alias = $_.ToLower()
 		$inputChars = $normalizedInput.ToCharArray()
 		$aliasChars = $alias.ToCharArray()
 		$matchingCharsCount = ($inputChars | Where-Object { $aliasChars -contains $_ }).Count
-		$matchingCharsCount -gt 1  # Фильтрация алиасов, где более одного совпадающего символа
+		$matchingCharsCount -gt 1
 	}
 
-	# Преобразование отфильтрованных ключей обратно в объекты с путями
 	$matchedAliases = $matches | ForEach-Object {
+		$alias = $_
+		$aliasChars = $alias.ToLower().ToCharArray()
+		$matchingCharsCount = ($normalizedInput.ToCharArray() | Where-Object { $aliasChars -contains $_ }).Count
 		[PSCustomObject]@{
-			Alias = $_
-			Path  = $Global:DirectoryAliases[$_]
+			Alias = $alias
+			Path  = $Global:DirectoryAliases[$alias]
+			Score = $matchingCharsCount
+		}
+	} | Sort-Object -Property Score -Descending
+
+	$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
+
+	if ($matchedAliases.Count -eq 1) {
+		$selectedAlias = $matchedAliases[0].Alias
+		$path = $Global:DirectoryAliases[$selectedAlias]
+		$spacesToAdd = $maxAliasLength - $selectedAlias.Length
+		$aliasDisplay = $selectedAlias + (' ' * $spacesToAdd)
+		Write-Host "`nOnly one matching alias found: '$aliasDisplay' -> '$path'. Navigating..." -ForegroundColor Green
+		Set-Location $path
+	}
+ elseif ($matchedAliases.Count -gt 1) {
+		Write-Host "`nDid you mean one of these? Type the number to navigate, or press ENTER to cancel:" -ForegroundColor Yellow
+		$index = 1
+		foreach ($alias in $matchedAliases) {
+			$spacesToAdd = $maxAliasLength - $alias.Alias.Length
+			if ($spacesToAdd -lt 0) {
+				$spacesToAdd = 0
+			}
+			$aliasDisplay = $alias.Alias + (' ' * $spacesToAdd)
+			Write-Host "[$index]: $aliasDisplay -> $($alias.Path)" -ForegroundColor Cyan
+			$index++
+		}
+
+		Write-Host "" # Additional indentation before selection
+		$choice = Read-Host "Enter your choice (1-$($matchedAliases.Count))"
+		if ([string]::IsNullOrWhiteSpace($choice)) {
+			Write-Host "No selection made. No action taken." -ForegroundColor Red
+		}
+		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
+			$selectedAlias = $matchedAliases[[int]$choice - 1].Alias
+			$spacesToAdd = $maxAliasLength - $selectedAlias.Length
+			$aliasDisplay = $selectedAlias + (' ' * $spacesToAdd)
+			$path = $Global:DirectoryAliases[$selectedAlias]
+			Write-Host "Navigating to '$aliasDisplay' -> '$path'." -ForegroundColor Green
+			Set-Location $path
+		}
+		else {
+			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
 		}
 	}
-
-	if ($matchedAliases.Count -eq 0) {
-		Write-Host "No aliases match your input."
-	}
- elseif ($matchedAliases.Count -eq 1) {
-		$match = $matchedAliases | Select-Object -First 1
-		Write-Host "Navigating to alias '$($match.Alias)' at path '$($match.Path)'."
-		Set-Location $match.Path
-	}
  else {
-		Write-Host "Multiple matches found. Please select one:"
-		$index = 0
-		$keyInfo = $null
-		$instructionsLine = [System.Console]::CursorTop + $matchedAliases.Count + 1
-
-		do {
-			# Выводим список алиасов
-			for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
-				if ($i -eq $index) {
-					Write-Host "-> $($matchedAliases[$i].Alias) -> $($matchedAliases[$i].Path)" -ForegroundColor Green
-				}
-				else {
-					Write-Host "   $($matchedAliases[$i].Alias) -> $($matchedAliases[$i].Path)" -ForegroundColor Gray
-				}
-			}
-
-			# Позиционирование сообщения
-			Write-Host "`nUse arrow keys to select an alias, press Enter to confirm, or Esc to cancel." -ForegroundColor Cyan
-
-			$keyInfo = [System.Console]::ReadKey($true)
-			# Возвращаем курсор наверх для переписывания списка алиасов
-			[System.Console]::SetCursorPosition(0, [System.Console]::CursorTop - $matchedAliases.Count - 2)
-
-			switch ($keyInfo.Key) {
-				'UpArrow' {
-					if ($index -gt 0) { $index-- }
-				}
-				'DownArrow' {
-					if ($index -lt $matchedAliases.Count - 1) { $index++ }
-				}
-				'Enter' {
-					$selectedAlias = $matchedAliases[$index].Alias
-					$selectedPath = $matchedAliases[$index].Path
-					# Очищаем строки инструкций
-					[System.Console]::SetCursorPosition(0, $instructionsLine)
-					Write-Host (" " * [System.Console]::WindowWidth)
-					Write-Host "Navigating to alias '$selectedAlias' at path '$selectedPath'."
-					Set-Location $selectedPath
-					return
-				}
-				'Escape' {
-					# Очищаем строки инструкций
-					[System.Console]::SetCursorPosition(0, $instructionsLine)
-					Write-Host (" " * [System.Console]::WindowWidth)
-					Write-Host "Operation cancelled."
-					return
-				}
-			}
-		} while ($keyInfo.Key -ne 'Enter' -and $keyInfo.Key -ne 'Escape')
+		Write-Host "No similar aliases found for '$aliasInput'." -ForegroundColor Red
 	}
 }
 
@@ -122,7 +107,6 @@ function goto {
 		[Parameter(Mandatory = $false, Position = 2)]
 		[string]$Path
 	)
-
 
 	# Check if the command is an alias directly
 	if ($Global:DirectoryAliases.ContainsKey($Command)) {
