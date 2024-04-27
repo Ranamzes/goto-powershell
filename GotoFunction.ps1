@@ -21,7 +21,7 @@ function Import-Aliases {
 			$Global:DirectoryAliases = @{}
 		}
 	}
- else {
+	else {
 		Write-Host "No aliases file found at $path. Starting with an empty aliases list."
 		$Global:DirectoryAliases = @{}
 	}
@@ -56,18 +56,17 @@ function _goto_print_similar {
 		$selectedAlias = $matchedAliases[0].Alias
 		$path = $Global:DirectoryAliases[$selectedAlias]
 		$spacesToAdd = $maxAliasLength - $selectedAlias.Length
+		$spacesToAdd = [Math]::Max(0, $spacesToAdd)
 		$aliasDisplay = $selectedAlias + (' ' * $spacesToAdd)
 		Write-Host "`nOnly one matching alias found: '$aliasDisplay' -> '$path'. Navigating..." -ForegroundColor Green
 		Set-Location $path
 	}
- elseif ($matchedAliases.Count -gt 1) {
+	elseif ($matchedAliases.Count -gt 1) {
 		Write-Host "`nDid you mean one of these? Type the number to navigate, or press ENTER to cancel:" -ForegroundColor Yellow
 		$index = 1
 		foreach ($alias in $matchedAliases) {
 			$spacesToAdd = $maxAliasLength - $alias.Alias.Length
-			if ($spacesToAdd -lt 0) {
-				$spacesToAdd = 0
-			}
+			$spacesToAdd = [Math]::Max(0, $spacesToAdd)  # Ensure non-negative value
 			$aliasDisplay = $alias.Alias + (' ' * $spacesToAdd)
 			Write-Host "[$index]: $aliasDisplay -> $($alias.Path)" -ForegroundColor Cyan
 			$index++
@@ -81,6 +80,7 @@ function _goto_print_similar {
 		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
 			$selectedAlias = $matchedAliases[[int]$choice - 1].Alias
 			$spacesToAdd = $maxAliasLength - $selectedAlias.Length
+			$spacesToAdd = [Math]::Max(0, $spacesToAdd)  # Ensure non-negative value
 			$aliasDisplay = $selectedAlias + (' ' * $spacesToAdd)
 			$path = $Global:DirectoryAliases[$selectedAlias]
 			Write-Host "Navigating to '$aliasDisplay' -> '$path'." -ForegroundColor Green
@@ -90,11 +90,10 @@ function _goto_print_similar {
 			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
 		}
 	}
- else {
+	else {
 		Write-Host "No similar aliases found for '$aliasInput'." -ForegroundColor Red
 	}
 }
-
 function goto {
 	[CmdletBinding()]
 	param(
@@ -114,7 +113,7 @@ function goto {
 		Write-Host "Navigating to alias '$Command' at path '$path'."
 		Set-Location $path
 	}
- else {
+	else {
 		# Handle predefined commands or suggest similar aliases
 		switch ($Command) {
 			'r' {
@@ -202,7 +201,7 @@ Register-ArgumentCompleter -CommandName 'goto' -ScriptBlock {
 			[System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
 		}
 	}
- else {
+	else {
 		# If user starts typing any other command, suggest commands
 		$commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
 			[System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', "Perform $_ operation")
