@@ -1,4 +1,4 @@
-# PowerShell goto Function
+# PowerShell goto navigation
 
 The PowerShell `goto` function provides an easy way to manage and navigate to your frequently used directories using simple aliases. This function mimics the behavior of the Unix `goto` command, making it easier to switch directories in a more organized manner.
 
