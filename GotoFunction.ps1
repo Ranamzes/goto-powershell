@@ -1,3 +1,15 @@
+function Invoke-VersionCheck {
+	$latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/Ranamzes/goto-powershell/releases/latest"
+	$latestVersion = $latestRelease.tag_name
+	$currentVersion = "1.2.9"
+
+	if ($latestVersion -ne $currentVersion) {
+		$updateCommand = 'Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Ranamzes/goto-powershell/main/InstallGoto.ps1" -OutFile "$env:TEMP\InstallGoto.ps1"; & "$env:TEMP\InstallGoto.ps1"; Remove-Item "$env:TEMP\InstallGoto.ps1"'
+		Write-Host "`nNew version $latestVersion is available! Please update using the following command:" -ForegroundColor Cyan
+		Write-Host "  $updateCommand" -ForegroundColor Green
+	}
+}
+Invoke-VersionCheck
 $Global:DirectoryAliases = @{}
 $Global:DirectoryStack = @{}
 
@@ -123,7 +135,7 @@ function goto {
 			'r' {
 				if (-not [string]::IsNullOrWhiteSpace($Alias) -and -not [string]::IsNullOrWhiteSpace($Path)) {
 					if (Test-Path $Path) {
-				$resolvedPath = Resolve-Path -Path $Path | Select-Object -ExpandProperty Path
+						$resolvedPath = Resolve-Path -Path $Path | Select-Object -ExpandProperty Path
 						# Проверка уникальности алиаса
 						if ($Global:DirectoryAliases.ContainsKey($Alias)) {
 							$currentPath = $Global:DirectoryAliases[$Alias]
@@ -135,9 +147,9 @@ function goto {
 								}
 							}
 						}
-				$Global:DirectoryAliases[$Alias] = $resolvedPath
+						$Global:DirectoryAliases[$Alias] = $resolvedPath
 						Write-Host "`nAlias '$Alias' registered for path '$resolvedPath'." -ForegroundColor Green
-				Save-Aliases
+						Save-Aliases
 					}
 					else {
 						Write-Warning "`nThe specified path does not exist." -ForegroundColor Yellow
@@ -152,11 +164,11 @@ function goto {
 					$aliasPath = $Global:DirectoryAliases[$Alias]
 					$confirmDeletion = Read-Host "Are you sure you want to unregister the alias '$Alias' which points to '$aliasPath'? [Y/N]"
 					if ($confirmDeletion -eq 'Y') {
-					$Global:DirectoryAliases.Remove($Alias)
+						$Global:DirectoryAliases.Remove($Alias)
 						Write-Host "`nAlias '$Alias' unregistered." -ForegroundColor Green
-					Save-Aliases
-				}
-				else {
+						Save-Aliases
+					}
+					else {
 						Write-Host "`nAlias unregistration cancelled." -ForegroundColor Yellow
 					}
 				}
@@ -183,19 +195,31 @@ function goto {
 				}
 			}
 			'c' {
-				$keysToRemove = $Global:DirectoryAliases.Keys | Where-Object { -Not (Test-Path $Global:DirectoryAliases[$_]) }
-				foreach ($key in $keysToRemove) {
-					Write-Warning "Cleaning up alias $key because the path no longer exists."
-					$Global:DirectoryAliases.Remove($key)
+				# Cleanup command to remove aliases with invalid or nonexistent paths
+				$keysToRemove = $Global:DirectoryAliases.Keys | Where-Object {
+					$path = $Global:DirectoryAliases[$_]
+					-not [string]::IsNullOrWhiteSpace($path) -and -not (Test-Path $path)
 				}
-				Save-Aliases
+
+				if ($keysToRemove.Count -gt 0) {
+					foreach ($key in $keysToRemove) {
+						Write-Warning "`n    Cleaning up alias '$key' because the path no longer exists." -ForegroundColor Yellow
+						$Global:DirectoryAliases.Remove($key)
+					}
+					Save-Aliases
+					Write-Host "`nCleanup complete. Removed aliases with non-existent paths." -ForegroundColor Green
+				}
+				else {
+					Write-Host "`nNo cleanup needed. All aliases point to valid paths." -ForegroundColor Yellow
+				}
 			}
 			'p' {
-				# Push the current location onto the stack
+				$currentPath = (Get-Location).Path
 				Push-Location
+
 				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
 					$path = $Global:DirectoryAliases[$Alias]
-					Write-Host "Pushed current directory and moved to '$Alias' at path '$path'."
+					Write-Host "`nPushed current directory '$currentPath' to stack and moved to alias '$Alias' at path '$path'." -ForegroundColor Green
 					Set-Location $path
 				}
 				else {
@@ -212,10 +236,10 @@ function goto {
 				# Pop the location off the stack
 				try {
 					Pop-Location
-					Write-Host "Popped and moved to the top location on the stack."
+					Write-Host "`nPopped and moved to the top location on the stack." -ForegroundColor Green
 				}
 				catch {
-					Write-Warning "Directory stack is empty or an error occurred."
+					Write-Warning "`nDirectory stack is empty or an error occurred." -ForegroundColor Yellow
 				}
 			}
 			default {
