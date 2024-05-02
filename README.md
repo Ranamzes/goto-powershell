@@ -2,7 +2,7 @@
 
 The PowerShell `goto` function provides an easy way to manage and navigate to your frequently used directories using simple aliases. This function mimics the behavior of the Unix `goto` command, making it easier to switch directories in a more organized manner.
 
-![Example of use](https://raw.githubusercontent.com/Ranamzes/goto-powershell/main/assets/example.gif)
+![Example of use](https://raw.githubusercontent.com/Ranamzes/goto-powershell/blob/main/assets/example.gif)
 
 ## Features
 
