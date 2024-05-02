@@ -4,9 +4,8 @@ function Invoke-VersionCheck {
 	$currentVersion = "v1.3.0"
 
 	if ($latestVersion -ne $currentVersion) {
-		$updateCommand = 'Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Ranamzes/goto-powershell/main/InstallGoto.ps1" -OutFile "$env:TEMP\InstallGoto.ps1"; & "$env:TEMP\InstallGoto.ps1"; Remove-Item "$env:TEMP\InstallGoto.ps1"'
 		Write-Host "`nNew version $latestVersion is available! Please update using the following command:" -ForegroundColor Cyan
-		Write-Host "  $updateCommand" -ForegroundColor Green
+		Write-Host "  goto update" -ForegroundColor Green
 	}
 }
 Invoke-VersionCheck
@@ -132,6 +131,11 @@ function goto {
 	else {
 		# Handle predefined commands or suggest similar aliases
 		switch ($Command) {
+			'update' {
+				Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Ranamzes/goto-powershell/main/InstallGoto.ps1" -OutFile "$env:TEMP\InstallGoto.ps1"
+				& "$env:TEMP\InstallGoto.ps1"
+				Remove-Item "$env:TEMP\InstallGoto.ps1"
+			}
 			'r' {
 				if (-not [string]::IsNullOrWhiteSpace($Alias) -and -not [string]::IsNullOrWhiteSpace($Path)) {
 					if (Test-Path $Path) {
