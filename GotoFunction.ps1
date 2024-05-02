@@ -176,10 +176,10 @@ function goto {
 			}
 			'x' {
 				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
-					Write-Host "$Alias -> $($Global:DirectoryAliases[$Alias])"
+					Write-Host "`n$Alias -> $($Global:DirectoryAliases[$Alias])" -ForegroundColor Green
 				}
 				else {
-					Write-Warning "Alias $Alias does not exist."
+					Write-Warning "`nAlias $Alias does not exist." -ForegroundColor Yellow
 				}
 			}
 			'c' {
