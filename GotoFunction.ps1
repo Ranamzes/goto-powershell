@@ -1,7 +1,7 @@
 function Invoke-VersionCheck {
 	$latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/Ranamzes/goto-powershell/releases/latest"
 	$latestVersion = $latestRelease.tag_name
-	$currentVersion = "v1.3.0"
+	$currentVersion = "v1.3.1"
 
 	if ($latestVersion -ne $currentVersion) {
 		Write-Host "`nNew version $latestVersion is available! Please update using the following command:" -ForegroundColor Cyan
@@ -135,7 +135,6 @@ function goto {
 				Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Ranamzes/goto-powershell/main/InstallGoto.ps1" -OutFile "$env:TEMP\InstallGoto.ps1"
 				& "$env:TEMP\InstallGoto.ps1"
 				Remove-Item "$env:TEMP\InstallGoto.ps1"
-				Write-Host "Goto has been updated!" -ForegroundColor Green
 			}
 			'r' {
 				if (-not [string]::IsNullOrWhiteSpace($Alias) -and -not [string]::IsNullOrWhiteSpace($Path)) {
@@ -186,8 +185,14 @@ function goto {
 					Write-Host "`nNo aliases registered."
 				}
 				else {
+					$horizontalLine = ([char]0x2500).ToString() * 2
+					$maxAliasLength = ($Global:DirectoryAliases.Keys | Measure-Object -Maximum -Property Length).Maximum + 2
+					Write-Host ""
 					$Global:DirectoryAliases.GetEnumerator() | Sort-Object Name | ForEach-Object {
-						Write-Host "$($_.Key) -> $($_.Value)"
+						$aliasPadded = $_.Key.PadRight($maxAliasLength)
+						Write-Host "  $aliasPadded" -ForegroundColor Green -NoNewline
+						Write-Host "$horizontalLine>  " -NoNewline
+						Write-Host $_.Value -ForegroundColor Yellow
 					}
 				}
 			}
