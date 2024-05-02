@@ -1,7 +1,7 @@
 function Invoke-VersionCheck {
 	$latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/Ranamzes/goto-powershell/releases/latest"
 	$latestVersion = $latestRelease.tag_name
-	$currentVersion = "v1.3.0"
+	$currentVersion = "v1.3.1"
 
 	if ($latestVersion -ne $currentVersion) {
 		Write-Host "`nNew version $latestVersion is available! Please update using the following command:" -ForegroundColor Cyan
