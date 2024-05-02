@@ -97,6 +97,7 @@ function _goto_print_similar {
 	}
 	return $null
 }
+
 function goto {
 	[CmdletBinding()]
 	param(
@@ -120,11 +121,31 @@ function goto {
 		# Handle predefined commands or suggest similar aliases
 		switch ($Command) {
 			'r' {
-				# Resolve the path to an absolute path
+				if (-not [string]::IsNullOrWhiteSpace($Alias) -and -not [string]::IsNullOrWhiteSpace($Path)) {
+					if (Test-Path $Path) {
 				$resolvedPath = Resolve-Path -Path $Path | Select-Object -ExpandProperty Path
+						# Проверка уникальности алиаса
+						if ($Global:DirectoryAliases.ContainsKey($Alias)) {
+							$currentPath = $Global:DirectoryAliases[$Alias]
+							if ($currentPath -ne $resolvedPath) {
+								$overwriteConfirmation = Read-Host "`nAlias '$Alias' already exists for path '$currentPath'. Overwrite? [Y/N]"
+								if ($overwriteConfirmation -ne 'Y') {
+									Write-Host "`nAlias registration cancelled." -ForegroundColor Yellow
+									return
+								}
+							}
+						}
 				$Global:DirectoryAliases[$Alias] = $resolvedPath
-				Write-Host "Alias $Alias registered for path $resolvedPath."
+						Write-Host "`nAlias '$Alias' registered for path '$resolvedPath'." -ForegroundColor Green
 				Save-Aliases
+					}
+					else {
+						Write-Warning "`nThe specified path does not exist." -ForegroundColor Yellow
+					}
+				}
+				else {
+					Write-Warning "`nAlias name or path not specified. Usage: goto r <alias_name> <path>" -ForegroundColor Yellow
+				}
 			}
 			'u' {
 				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
