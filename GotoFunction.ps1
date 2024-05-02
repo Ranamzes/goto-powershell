@@ -1,7 +1,7 @@
 function Invoke-VersionCheck {
 	$latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/Ranamzes/goto-powershell/releases/latest"
 	$latestVersion = $latestRelease.tag_name
-	$currentVersion = "1.3.0"
+	$currentVersion = "v1.3.0"
 
 	if ($latestVersion -ne $currentVersion) {
 		$updateCommand = 'Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Ranamzes/goto-powershell/main/InstallGoto.ps1" -OutFile "$env:TEMP\InstallGoto.ps1"; & "$env:TEMP\InstallGoto.ps1"; Remove-Item "$env:TEMP\InstallGoto.ps1"'
