@@ -149,17 +149,24 @@ function goto {
 			}
 			'u' {
 				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
+					$aliasPath = $Global:DirectoryAliases[$Alias]
+					$confirmDeletion = Read-Host "Are you sure you want to unregister the alias '$Alias' which points to '$aliasPath'? [Y/N]"
+					if ($confirmDeletion -eq 'Y') {
 					$Global:DirectoryAliases.Remove($Alias)
-					Write-Host "Alias $Alias unregistered."
+						Write-Host "`nAlias '$Alias' unregistered." -ForegroundColor Green
 					Save-Aliases
 				}
 				else {
-					Write-Warning "Alias $Alias does not exist."
+						Write-Host "`nAlias unregistration cancelled." -ForegroundColor Yellow
+					}
+				}
+				else {
+					Write-Warning "`nAlias '$Alias' does not exist." -ForegroundColor Yellow
 				}
 			}
 			'l' {
 				if ($Global:DirectoryAliases.Count -eq 0) {
-					Write-Host "No aliases registered."
+					Write-Host "`nNo aliases registered."
 				}
 				else {
 					$Global:DirectoryAliases.GetEnumerator() | Sort-Object Name | ForEach-Object {
