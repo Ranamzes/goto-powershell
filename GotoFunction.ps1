@@ -60,6 +60,7 @@ function _goto_print_similar {
 		$aliasDisplay = $selectedAlias + (' ' * $spacesToAdd)
 		Write-Host "`nOnly one matching alias found: '$aliasDisplay' -> '$path'. Navigating..." -ForegroundColor Green
 		Set-Location $path
+		return $selectedAlias
 	}
 	elseif ($matchedAliases.Count -gt 1) {
 		Write-Host "`nDid you mean one of these? Type the number to navigate, or press ENTER to cancel:" -ForegroundColor Yellow
@@ -85,6 +86,7 @@ function _goto_print_similar {
 			$path = $Global:DirectoryAliases[$selectedAlias]
 			Write-Host "Navigating to '$aliasDisplay' -> '$path'." -ForegroundColor Green
 			Set-Location $path
+			return $selectedAlias
 		}
 		else {
 			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
@@ -93,6 +95,7 @@ function _goto_print_similar {
 	else {
 		Write-Host "No similar aliases found for '$aliasInput'." -ForegroundColor Red
 	}
+	return $null
 }
 function goto {
 	[CmdletBinding()]
@@ -168,7 +171,13 @@ function goto {
 					Set-Location $path
 				}
 				else {
-					Write-Host "Alias '$Alias' does not exist. Pushed current directory."
+					if (-not [string]::IsNullOrWhiteSpace($Alias)) {
+						$selectedAlias = _goto_print_similar -aliasInput $Alias
+						Write-Host "`nPushed current directory '$currentPath' to stack and moved to alias." -ForegroundColor Green
+					}
+					else {
+						Write-Host "`nNo alias specified. Pushed current directory '$currentPath' to stack." -ForegroundColor Yellow
+					}
 				}
 			}
 			'o' {
@@ -183,7 +192,7 @@ function goto {
 			}
 			default {
 				Write-Host "Usage: goto [ r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | <alias>]"
-				_goto_print_similar -aliasInput $Command
+				$null = _goto_print_similar -aliasInput $Command
 			}
 		}
 	}
