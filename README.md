@@ -14,7 +14,8 @@ The PowerShell `goto` function provides an easy way to manage and navigate to yo
 - **Cleanup Aliases:** Remove aliases pointing to non-existent directories.
 - **Push Directory onto Stack:** Save your current directory before moving to another.
 - **Pop Directory from Stack:** Return to the most recently saved directory.
-
+- **Update goto:** Automatically check for and apply updates to the goto function.
+-
 Installation
 ## Installation
 
@@ -86,6 +87,12 @@ goto p <alias>
 To return to the directory saved before the last navigation:
 ```powershell
 goto o
+```
+### Update goto
+
+To check for updates and apply the latest version of the goto function:
+```powershell
+goto update
 ```
 
 ### Examples
