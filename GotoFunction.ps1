@@ -135,6 +135,7 @@ function goto {
 				Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Ranamzes/goto-powershell/main/InstallGoto.ps1" -OutFile "$env:TEMP\InstallGoto.ps1"
 				& "$env:TEMP\InstallGoto.ps1"
 				Remove-Item "$env:TEMP\InstallGoto.ps1"
+				Write-Host "Goto has been updated!" -ForegroundColor Green
 			}
 			'r' {
 				if (-not [string]::IsNullOrWhiteSpace($Alias) -and -not [string]::IsNullOrWhiteSpace($Path)) {
