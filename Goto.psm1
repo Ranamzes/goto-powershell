@@ -19,7 +19,6 @@ Import-Module "$scriptPath"
 Import-Aliases
 "@
 
-	# Check if the profile already contains a reference to Goto.psm1 and add if not
 	if (-Not (Select-String -Path $PROFILE -Pattern "Goto.psm1" -Quiet)) {
 		Add-Content -Path $PROFILE -Value $profileContent
 		Write-Host "Goto module has been added to your PowerShell profile." -ForegroundColor Green
@@ -291,8 +290,14 @@ function goto {
 				}
 			}
 			default {
-				Write-Host "Usage: goto [ r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | <alias>]"
-				$null = _goto_print_similar -aliasInput $Command
+				$selectedAlias = _goto_print_similar -aliasInput $Command
+				if ($selectedAlias) {
+					$path = $Global:DirectoryAliases[$selectedAlias]
+					Set-Location $path
+				}
+				else {
+					Write-Host "Usage: goto [ r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | <alias>]"
+				}
 			}
 		}
 	}
