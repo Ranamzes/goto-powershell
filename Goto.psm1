@@ -1,13 +1,14 @@
+$script:PowerShellDataPath = [System.IO.Path]::Combine([Environment]::GetFolderPath('ApplicationData'), 'PowerShell')
+$script:GotoDataPath = Join-Path -Path $script:PowerShellDataPath -ChildPath 'Goto'
+$script:AliasFilePath = Join-Path -Path $script:GotoDataPath -ChildPath "GotoAliases.ps1"
+
 $Global:DirectoryAliases = @{}
-$Global:DirectoryStack = @{}
 
 function Update-GotoModule {
 	try {
-		# Проверяем текущую версию
 		$currentVersion = (Get-InstalledModule -Name Goto -ErrorAction Stop).Version
 		Write-Host "Current Goto version: $currentVersion" -ForegroundColor Cyan
 
-		# Обновляем модуль
 		Update-Module -Name Goto -Force -ErrorAction Stop
 		$newVersion = (Get-InstalledModule -Name Goto -ErrorAction Stop).Version
 		Write-Host "Updated Goto to version: $newVersion" -ForegroundColor Green
@@ -15,46 +16,10 @@ function Update-GotoModule {
 		if ($newVersion -gt $currentVersion) {
 			Write-Host "Goto has been successfully updated!" -ForegroundColor Green
 
-			# Пытаемся обновить профиль PowerShell
-			try {
-				$profilePaths = @(
-					$PROFILE,
-					$PROFILE.CurrentUserCurrentHost,
-					$PROFILE.CurrentUserAllHosts,
-					$PROFILE.AllUsersCurrentHost,
-					$PROFILE.AllUsersAllHosts
-				)
+			Import-Aliases
+			Write-Host "Aliases have been restored from $script:AliasFilePath" -ForegroundColor Green
 
-				$profileUpdated = $false
-				foreach ($profilePath in $profilePaths) {
-					if (Test-Path $profilePath) {
-						$profileContent = Get-Content $profilePath -Raw
-						if ($profileContent -notmatch "Import-Module Goto") {
-							Add-Content -Path $profilePath -Value "`nImport-Module Goto" -ErrorAction Stop
-							Write-Host "Added Goto import to PowerShell profile at $profilePath" -ForegroundColor Green
-							$profileUpdated = $true
-							break
-						}
-						else {
-							Write-Host "Goto import already exists in PowerShell profile at $profilePath" -ForegroundColor Cyan
-							$profileUpdated = $true
-							break
-						}
-					}
-				}
-
-				if (-not $profileUpdated) {
-					# Если профиль не найден, создаем новый
-					$newProfilePath = $PROFILE.CurrentUserCurrentHost
-					New-Item -Path $newProfilePath -ItemType File -Force | Out-Null
-					Add-Content -Path $newProfilePath -Value "Import-Module Goto" -ErrorAction Stop
-					Write-Host "Created new PowerShell profile and added Goto import at $newProfilePath" -ForegroundColor Green
-				}
-			}
-			catch {
-				Write-Host "Unable to update PowerShell profile: $_" -ForegroundColor Yellow
-				Write-Host "Please manually add 'Import-Module Goto' to your PowerShell profile." -ForegroundColor Yellow
-			}
+			Initialize-GotoEnvironment
 
 			Write-Host "Please restart your PowerShell session to use the new version." -ForegroundColor Yellow
 		}
@@ -68,33 +33,35 @@ function Update-GotoModule {
 		Write-Host "Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Red
 	}
 }
+
 function Initialize-GotoEnvironment {
-	$scriptDirectory = "$HOME\PowerShellScripts"
-	$scriptPath = Join-Path -Path $scriptDirectory -ChildPath "Goto.psm1"
+	if (-not (Test-Path -Path $script:GotoDataPath)) {
+		New-Item -Path $script:GotoDataPath -ItemType Directory -Force | Out-Null
+	}
 
-	# Create the directory if it doesn't exist
-	New-Item -ItemType Directory -Path $scriptDirectory -Force | Out-Null
-
-	# Copy the module file to the scripts directory
-	Copy-Item -Path $PSScriptRoot\Goto.psm1 -Destination $scriptPath -Force
-
-	# Define the content to be added to the PowerShell profile
 	$profileContent = @"
 
 # Auto-generated import for Goto module
-Import-Module "$scriptPath"
-Import-Aliases
+Import-Module Goto
+. '$script:AliasFilePath'
 "@
 
-	if (-Not (Select-String -Path $PROFILE -Pattern "Goto.psm1" -Quiet)) {
-		Add-Content -Path $PROFILE -Value $profileContent
-		Write-Host "Goto module has been added to your PowerShell profile." -ForegroundColor Green
-		Write-Host "Please reload your PowerShell session or run 'Import-Aliases' to start using Goto." -ForegroundColor Yellow
+	if (-not (Test-Path -Path $PROFILE)) {
+		New-Item -Path $PROFILE -ItemType File -Force | Out-Null
 	}
- else {
-		Write-Host "Goto module is already registered in your PowerShell profile." -ForegroundColor Cyan
+
+	$currentProfileContent = Get-Content -Path $PROFILE -Raw -ErrorAction SilentlyContinue
+
+	if ($currentProfileContent -notmatch [regex]::Escape($profileContent)) {
+		Add-Content -Path $PROFILE -Value "`n$profileContent"
+		Write-Host "Goto module and aliases import has been added to your PowerShell profile." -ForegroundColor Green
+		Write-Host "Please restart your PowerShell session or run '. `$PROFILE' to apply changes." -ForegroundColor Yellow
+	}
+	else {
+		Write-Host "Goto module and aliases are already configured in your PowerShell profile." -ForegroundColor Cyan
 	}
 }
+
 function Invoke-VersionCheck {
 	$installedModule = Get-InstalledModule -Name Goto -ErrorAction SilentlyContinue
 	$onlineModule = Find-Module -Name Goto -ErrorAction SilentlyContinue
@@ -109,27 +76,33 @@ function Invoke-VersionCheck {
 }
 
 function Save-Aliases {
-	$path = Join-Path $env:USERPROFILE "PowerShellScripts\DirectoryAliases.json"
-	$Global:DirectoryAliases | ConvertTo-Json | Set-Content -Path $path
+	$aliasContent = @"
+# Goto Directory Aliases
+`$Global:DirectoryAliases = @{
+$($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "    '$($_.Key)' = '$($_.Value)'" } | Join-String -Separator "`n")
+}
+
+# Create cd aliases
+$($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "Set-Alias -Name cd$($_.Key) -Value { Set-Location `$Global:DirectoryAliases['$($_.Key)'] }" } | Join-String -Separator "`n")
+"@
+
+	$aliasContent | Set-Content -Path $script:AliasFilePath
+	Write-Host "Aliases saved to $script:AliasFilePath" -ForegroundColor Green
 }
 
 function Import-Aliases {
-	$path = Join-Path $env:USERPROFILE "PowerShellScripts\DirectoryAliases.json"
-	if (Test-Path $path) {
+	if (Test-Path $script:AliasFilePath) {
 		try {
-			$jsonContent = Get-Content -Path $path | ConvertFrom-Json
-			$Global:DirectoryAliases = @{}
-			foreach ($entry in $jsonContent.PSObject.Properties) {
-				$Global:DirectoryAliases[$entry.Name] = $entry.Value
-			}
+			. $script:AliasFilePath
+			Write-Host "Aliases successfully imported from $script:AliasFilePath" -ForegroundColor Green
 		}
 		catch {
-			Write-Warning "Failed to load aliases from $path due to invalid format."
+			Write-Warning "Failed to load aliases from $script:AliasFilePath. Error: $_"
 			$Global:DirectoryAliases = @{}
 		}
 	}
 	else {
-		Write-Host "No aliases file found at $path. Starting with an empty aliases list."
+		Write-Host "No aliases file found at $script:AliasFilePath. Starting with an empty aliases list." -ForegroundColor Yellow
 		$Global:DirectoryAliases = @{}
 	}
 }
@@ -357,8 +330,8 @@ function goto {
 
 
 Initialize-GotoEnvironment
-Invoke-VersionCheck
-Export-ModuleMember -Function goto, Import-Aliases, Initialize-GotoEnvironment, Update-GotoModule
+Import-Aliases
+Export-ModuleMember -Function goto, Import-Aliases, Initialize-GotoEnvironment, Update-GotoModule, Save-Aliases
 
 Register-ArgumentCompleter -CommandName 'goto' -ScriptBlock {
 	param($commandName, $wordToComplete, $commandAst, $fakeBoundParameters)
