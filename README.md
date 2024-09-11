@@ -14,24 +14,33 @@ The PowerShell `goto` function provides an easy way to manage and navigate to yo
 - **Cleanup Aliases:** Remove aliases pointing to non-existent directories.
 - **Push Directory onto Stack:** Save your current directory before moving to another.
 - **Pop Directory from Stack:** Return to the most recently saved directory.
-- **Update goto:** Automatically check for and apply updates to the goto function.
--
+- **Auto-update functionality:** Automatically check for and apply updates to the goto function.
+
 Installation
 ## Installation
 
-To install the `goto` function in your PowerShell environment, run the following command in your PowerShell terminal. This command will automatically download and configure everything needed:
+To install the Goto module from PowerShell Gallery, run the following command in your PowerShell session:
 
 ```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Ranamzes/goto-powershell/main/InstallGoto.ps1" -OutFile "$env:TEMP\InstallGoto.ps1"; & "$env:TEMP\InstallGoto.ps1"; Remove-Item "$env:TEMP\InstallGoto.ps1"
+Install-Module -Name Goto -Scope CurrentUser
 ```
 
-This script will:
+If you want to install for all users on the system, run PowerShell as Administrator and use:
 
-- Download the `goto` function script.
-- Add a line to your PowerShell profile for automatic loading.
-- Clean up the installation script after execution.
+```powershell
+CopyInstall-Module -Name Goto -Scope AllUsers
+```
+
+After installation, the module will automatically set up the necessary environment and update your PowerShell profile.
 
 ## Usage
+
+After installation, import the module:
+```powershell
+CopyImport-Module Goto
+```
+
+For automatic importing, this line will be added to your PowerShell profile during installation.
 
 ### Register a New Alias
 

@@ -1,16 +1,46 @@
-function Invoke-VersionCheck {
-	$latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/Ranamzes/goto-powershell/releases/latest"
-	$latestVersion = $latestRelease.tag_name
-	$currentVersion = "v1.3.1"
-
-	if ($latestVersion -ne $currentVersion) {
-		Write-Host "`nNew version $latestVersion is available! Please update using the following command:" -ForegroundColor Cyan
-		Write-Host "  goto update" -ForegroundColor Green
-	}
-}
-Invoke-VersionCheck
 $Global:DirectoryAliases = @{}
 $Global:DirectoryStack = @{}
+
+function Initialize-GotoEnvironment {
+	$scriptDirectory = "$HOME\PowerShellScripts"
+	$scriptPath = Join-Path -Path $scriptDirectory -ChildPath "Goto.psm1"
+
+	# Create the directory if it doesn't exist
+	New-Item -ItemType Directory -Path $scriptDirectory -Force | Out-Null
+
+	# Copy the module file to the scripts directory
+	Copy-Item -Path $PSScriptRoot\Goto.psm1 -Destination $scriptPath -Force
+
+	# Define the content to be added to the PowerShell profile
+	$profileContent = @"
+
+# Auto-generated import for Goto module
+Import-Module "$scriptPath"
+Import-Aliases
+"@
+
+	# Check if the profile already contains a reference to Goto.psm1 and add if not
+	if (-Not (Select-String -Path $PROFILE -Pattern "Goto.psm1" -Quiet)) {
+		Add-Content -Path $PROFILE -Value $profileContent
+		Write-Host "Goto module has been added to your PowerShell profile." -ForegroundColor Green
+		Write-Host "Please reload your PowerShell session or run 'Import-Aliases' to start using Goto." -ForegroundColor Yellow
+	}
+ else {
+		Write-Host "Goto module is already registered in your PowerShell profile." -ForegroundColor Cyan
+	}
+}
+function Invoke-VersionCheck {
+	$installedModule = Get-InstalledModule -Name Goto -ErrorAction SilentlyContinue
+	$onlineModule = Find-Module -Name Goto -ErrorAction SilentlyContinue
+
+	if ($installedModule -and $onlineModule) {
+		if ($onlineModule.Version -gt $installedModule.Version) {
+			Write-Host "`nNew version $($onlineModule.Version) is available! Your version: $($installedModule.Version)" -ForegroundColor Cyan
+			Write-Host "To update, run the following command:" -ForegroundColor Cyan
+			Write-Host "  goto update" -ForegroundColor Green
+		}
+	}
+}
 
 function Save-Aliases {
 	$path = Join-Path $env:USERPROFILE "PowerShellScripts\DirectoryAliases.json"
@@ -84,7 +114,7 @@ function _goto_print_similar {
 			$index++
 		}
 
-		Write-Host "" # Additional indentation before selection
+		Write-Host ""
 		$choice = Read-Host "Enter your choice (1-$($matchedAliases.Count))"
 		if ([string]::IsNullOrWhiteSpace($choice)) {
 			Write-Host "No selection made. No action taken." -ForegroundColor Red
@@ -92,7 +122,7 @@ function _goto_print_similar {
 		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
 			$selectedAlias = $matchedAliases[[int]$choice - 1].Alias
 			$spacesToAdd = $maxAliasLength - $selectedAlias.Length
-			$spacesToAdd = [Math]::Max(0, $spacesToAdd)  # Ensure non-negative value
+			$spacesToAdd = [Math]::Max(0, $spacesToAdd)
 			$aliasDisplay = $selectedAlias + (' ' * $spacesToAdd)
 			$path = $Global:DirectoryAliases[$selectedAlias]
 			Write-Host "Navigating to '$aliasDisplay' -> '$path'." -ForegroundColor Green
@@ -122,26 +152,35 @@ function goto {
 		[string]$Path
 	)
 
-	# Check if the command is an alias directly
 	if ($Global:DirectoryAliases.ContainsKey($Command)) {
 		$path = $Global:DirectoryAliases[$Command]
 		Write-Host "Navigating to alias '$Command' at path '$path'."
 		Set-Location $path
 	}
 	else {
-		# Handle predefined commands or suggest similar aliases
 		switch ($Command) {
 			'update' {
-				Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Ranamzes/goto-powershell/main/InstallGoto.ps1" -OutFile "$env:TEMP\InstallGoto.ps1"
-				& "$env:TEMP\InstallGoto.ps1"
-				Remove-Item "$env:TEMP\InstallGoto.ps1"
-				Write-Host "Goto has been updated!" -ForegroundColor Green
+				try {
+					$currentVersion = (Get-InstalledModule -Name Goto).Version
+					Update-Module -Name Goto -Force -ErrorAction Stop
+					$newVersion = (Get-InstalledModule -Name Goto).Version
+					if ($newVersion -gt $currentVersion) {
+						Write-Host "Goto has been updated from version $currentVersion to $newVersion!" -ForegroundColor Green
+						Initialize-GotoEnvironment
+						Write-Host "Please restart your PowerShell session to use the new version." -ForegroundColor Yellow
+					}
+					else {
+						Write-Host "Goto is already at the latest version ($currentVersion)." -ForegroundColor Green
+					}
+				}
+				catch {
+					Write-Host "An error occurred while updating Goto: $_" -ForegroundColor Red
+				}
 			}
 			'r' {
 				if (-not [string]::IsNullOrWhiteSpace($Alias) -and -not [string]::IsNullOrWhiteSpace($Path)) {
 					if (Test-Path $Path) {
 						$resolvedPath = Resolve-Path -Path $Path | Select-Object -ExpandProperty Path
-						# Проверка уникальности алиаса
 						if ($Global:DirectoryAliases.ContainsKey($Alias)) {
 							$currentPath = $Global:DirectoryAliases[$Alias]
 							if ($currentPath -ne $resolvedPath) {
@@ -206,7 +245,6 @@ function goto {
 				}
 			}
 			'c' {
-				# Cleanup command to remove aliases with invalid or nonexistent paths
 				$keysToRemove = $Global:DirectoryAliases.Keys | Where-Object {
 					$path = $Global:DirectoryAliases[$_]
 					-not [string]::IsNullOrWhiteSpace($path) -and -not (Test-Path $path)
@@ -244,7 +282,6 @@ function goto {
 				}
 			}
 			'o' {
-				# Pop the location off the stack
 				try {
 					Pop-Location
 					Write-Host "`nPopped and moved to the top location on the stack." -ForegroundColor Green
@@ -261,20 +298,22 @@ function goto {
 	}
 }
 
+
+Initialize-GotoEnvironment
+Invoke-VersionCheck
+Export-ModuleMember -Function goto, Import-Aliases, Initialize-GotoEnvironment
+
 Register-ArgumentCompleter -CommandName 'goto' -ScriptBlock {
 	param($commandName, $wordToComplete, $commandAst, $fakeBoundParameters)
-	# Single-letter commands
 	$commands = 'r', 'u', 'l', 'x', 'c', 'p', 'o'  # Register, Unregister, List, eXpand, Cleanup, Push, Pop
 	$aliases = $Global:DirectoryAliases.Keys
 
 	if ($wordToComplete -eq 'u' -or $wordToComplete -eq 'x') {
-		# If user starts typing 'u' for unregister or 'x' for expand, suggest aliases
 		$aliases | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
 			[System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
 		}
 	}
 	else {
-		# If user starts typing any other command, suggest commands
 		$commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
 			[System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', "Perform $_ operation")
 		}
