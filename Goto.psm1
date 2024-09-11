@@ -1,6 +1,73 @@
 $Global:DirectoryAliases = @{}
 $Global:DirectoryStack = @{}
 
+function Update-GotoModule {
+	try {
+		# Проверяем текущую версию
+		$currentVersion = (Get-InstalledModule -Name Goto -ErrorAction Stop).Version
+		Write-Host "Current Goto version: $currentVersion" -ForegroundColor Cyan
+
+		# Обновляем модуль
+		Update-Module -Name Goto -Force -ErrorAction Stop
+		$newVersion = (Get-InstalledModule -Name Goto -ErrorAction Stop).Version
+		Write-Host "Updated Goto to version: $newVersion" -ForegroundColor Green
+
+		if ($newVersion -gt $currentVersion) {
+			Write-Host "Goto has been successfully updated!" -ForegroundColor Green
+
+			# Пытаемся обновить профиль PowerShell
+			try {
+				$profilePaths = @(
+					$PROFILE,
+					$PROFILE.CurrentUserCurrentHost,
+					$PROFILE.CurrentUserAllHosts,
+					$PROFILE.AllUsersCurrentHost,
+					$PROFILE.AllUsersAllHosts
+				)
+
+				$profileUpdated = $false
+				foreach ($profilePath in $profilePaths) {
+					if (Test-Path $profilePath) {
+						$profileContent = Get-Content $profilePath -Raw
+						if ($profileContent -notmatch "Import-Module Goto") {
+							Add-Content -Path $profilePath -Value "`nImport-Module Goto" -ErrorAction Stop
+							Write-Host "Added Goto import to PowerShell profile at $profilePath" -ForegroundColor Green
+							$profileUpdated = $true
+							break
+						}
+						else {
+							Write-Host "Goto import already exists in PowerShell profile at $profilePath" -ForegroundColor Cyan
+							$profileUpdated = $true
+							break
+						}
+					}
+				}
+
+				if (-not $profileUpdated) {
+					# Если профиль не найден, создаем новый
+					$newProfilePath = $PROFILE.CurrentUserCurrentHost
+					New-Item -Path $newProfilePath -ItemType File -Force | Out-Null
+					Add-Content -Path $newProfilePath -Value "Import-Module Goto" -ErrorAction Stop
+					Write-Host "Created new PowerShell profile and added Goto import at $newProfilePath" -ForegroundColor Green
+				}
+			}
+			catch {
+				Write-Host "Unable to update PowerShell profile: $_" -ForegroundColor Yellow
+				Write-Host "Please manually add 'Import-Module Goto' to your PowerShell profile." -ForegroundColor Yellow
+			}
+
+			Write-Host "Please restart your PowerShell session to use the new version." -ForegroundColor Yellow
+		}
+		else {
+			Write-Host "Goto is already at the latest version ($currentVersion)." -ForegroundColor Green
+		}
+	}
+	catch {
+		Write-Host "An error occurred while updating Goto: $_" -ForegroundColor Red
+		Write-Host "Error details: $($_.Exception.Message)" -ForegroundColor Red
+		Write-Host "Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Red
+	}
+}
 function Initialize-GotoEnvironment {
 	$scriptDirectory = "$HOME\PowerShellScripts"
 	$scriptPath = Join-Path -Path $scriptDirectory -ChildPath "Goto.psm1"
@@ -159,22 +226,7 @@ function goto {
 	else {
 		switch ($Command) {
 			'update' {
-				try {
-					$currentVersion = (Get-InstalledModule -Name Goto).Version
-					Update-Module -Name Goto -Force -ErrorAction Stop
-					$newVersion = (Get-InstalledModule -Name Goto).Version
-					if ($newVersion -gt $currentVersion) {
-						Write-Host "Goto has been updated from version $currentVersion to $newVersion!" -ForegroundColor Green
-						Initialize-GotoEnvironment
-						Write-Host "Please restart your PowerShell session to use the new version." -ForegroundColor Yellow
-					}
-					else {
-						Write-Host "Goto is already at the latest version ($currentVersion)." -ForegroundColor Green
-					}
-				}
-				catch {
-					Write-Host "An error occurred while updating Goto: $_" -ForegroundColor Red
-				}
+				Update-GotoModule
 			}
 			'r' {
 				if (-not [string]::IsNullOrWhiteSpace($Alias) -and -not [string]::IsNullOrWhiteSpace($Path)) {
@@ -306,7 +358,7 @@ function goto {
 
 Initialize-GotoEnvironment
 Invoke-VersionCheck
-Export-ModuleMember -Function goto, Import-Aliases, Initialize-GotoEnvironment
+Export-ModuleMember -Function goto, Import-Aliases, Initialize-GotoEnvironment, Update-GotoModule
 
 Register-ArgumentCompleter -CommandName 'goto' -ScriptBlock {
 	param($commandName, $wordToComplete, $commandAst, $fakeBoundParameters)
