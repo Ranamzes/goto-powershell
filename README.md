@@ -28,7 +28,7 @@ Install-Module -Name Goto -Scope CurrentUser
 If you want to install for all users on the system, run PowerShell as Administrator and use:
 
 ```powershell
-CopyInstall-Module -Name Goto -Scope AllUsers
+Install-Module -Name Goto -Scope AllUsers
 ```
 
 After installation, the module will automatically set up the necessary environment and update your PowerShell profile.
@@ -37,7 +37,7 @@ After installation, the module will automatically set up the necessary environme
 
 After installation, import the module:
 ```powershell
-CopyImport-Module Goto
+Import-Module Goto
 ```
 
 For automatic importing, this line will be added to your PowerShell profile during installation.
@@ -46,7 +46,7 @@ For automatic importing, this line will be added to your PowerShell profile duri
 
 To save a directory path under a memorable alias:
 ```powershell
- goto r <alias> <path>
+goto r <alias> <path>
 ```
 
 ### Navigate Using an Alias
