@@ -79,11 +79,11 @@ function Save-Aliases {
 	$aliasContent = @"
 # Goto Directory Aliases
 `$Global:DirectoryAliases = @{
-$($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "    '$($_.Key)' = '$($_.Value)'" } | Join-String -Separator "`n")
+$($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "    '$($_.Key)' = '$($_.Value)'" } -join "`n")
 }
 
 # Create cd aliases
-$($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "Set-Alias -Name cd$($_.Key) -Value { Set-Location `$Global:DirectoryAliases['$($_.Key)'] }" } | Join-String -Separator "`n")
+$($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "Set-Alias -Name cd$($_.Key) -Value { Set-Location `$Global:DirectoryAliases['$($_.Key)'] }" } -join "`n")
 "@
 
 	$aliasContent | Set-Content -Path $script:AliasFilePath
@@ -147,7 +147,7 @@ function _goto_print_similar {
 		$index = 1
 		foreach ($alias in $matchedAliases) {
 			$spacesToAdd = $maxAliasLength - $alias.Alias.Length
-			$spacesToAdd = [Math]::Max(0, $spacesToAdd)  # Ensure non-negative value
+			$spacesToAdd = [Math]::Max(0, $spacesToAdd)
 			$aliasDisplay = $alias.Alias + (' ' * $spacesToAdd)
 			Write-Host "[$index]: $aliasDisplay -> $($alias.Path)" -ForegroundColor Cyan
 			$index++
@@ -328,14 +328,17 @@ function goto {
 	}
 }
 
-
+# Initialization when loading module
 Initialize-GotoEnvironment
 Import-Aliases
+Invoke-VersionCheck
+
+# Export of functions
 Export-ModuleMember -Function goto, Import-Aliases, Initialize-GotoEnvironment, Update-GotoModule, Save-Aliases
 
 Register-ArgumentCompleter -CommandName 'goto' -ScriptBlock {
 	param($commandName, $wordToComplete, $commandAst, $fakeBoundParameters)
-	$commands = 'r', 'u', 'l', 'x', 'c', 'p', 'o'  # Register, Unregister, List, eXpand, Cleanup, Push, Pop
+	$commands = 'r', 'u', 'l', 'x', 'c', 'p', 'o', 'update'  # Register, Unregister, List, eXpand, Cleanup, Push, Pop, Update
 	$aliases = $Global:DirectoryAliases.Keys
 
 	if ($wordToComplete -eq 'u' -or $wordToComplete -eq 'x') {
