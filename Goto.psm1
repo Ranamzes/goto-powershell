@@ -79,8 +79,15 @@ function Save-Aliases {
 $($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "    '$($_.Key)' = '$($_.Value)'" } -join "`n")
 }
 
+# Create functions for cd aliases
+$($Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
+    "function Global:cdFunc_$($_.Key) { Set-Location `$Global:DirectoryAliases['$($_.Key)'] }"
+} -join "`n")
+
 # Create cd aliases
-$($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "Set-Alias -Name cd$($_.Key) -Value { Set-Location `$Global:DirectoryAliases['$($_.Key)'] }" } -join "`n")
+$($Global:DirectoryAliases.Keys | ForEach-Object {
+    "Set-Alias -Name 'cd$_' -Value 'Global:cdFunc_$_' -Scope Global"
+} -join "`n")
 "@
 
 	$aliasContent | Set-Content -Path $script:AliasFilePath
@@ -91,6 +98,9 @@ function Import-Aliases {
 	if (Test-Path $script:AliasFilePath) {
 		try {
 			. $script:AliasFilePath
+			$Global:DirectoryAliases.Keys | ForEach-Object {
+				Set-Alias -Name "cd$_" -Value "Global:cdFunc_$_" -Scope Global
+			}
 		}
 		catch {
 			Write-Warning "Failed to load aliases from $script:AliasFilePath. Error: $_"
