@@ -31,15 +31,17 @@ function Update-GotoModule {
 
 		$currentAliases = $Global:DirectoryAliases.Clone()
 
-		$currentVersion = (Get-InstalledModule -Name Goto -ErrorAction Stop).Version
-		Write-Host "Current Goto version: $currentVersion" -ForegroundColor Cyan
+		$currentModule = Get-InstalledModule -Name Goto -ErrorAction Stop
+		$onlineModule = Find-Module -Name Goto -ErrorAction Stop
 
-		Update-Module -Name Goto -Force -ErrorAction Stop
-		$newVersion = (Get-InstalledModule -Name Goto -ErrorAction Stop).Version
-		Write-Host "Updated Goto to version: $newVersion" -ForegroundColor Green
+		if ($onlineModule.Version -gt $currentModule.Version) {
+			Write-Host "Current Goto version: $($currentModule.Version)" -ForegroundColor Cyan
+			Write-Host "New version available: $($onlineModule.Version)" -ForegroundColor Green
 
-		if ($newVersion -gt $currentVersion) {
-			Write-Host "Goto has been successfully updated!" -ForegroundColor Green
+			Update-Module -Name Goto -Force -ErrorAction Stop
+
+			$updatedModule = Get-InstalledModule -Name Goto
+			Write-Host "Goto has been successfully updated to version $($updatedModule.Version)!" -ForegroundColor Green
 
 			$Global:DirectoryAliases = $currentAliases
 			Save-Aliases
@@ -51,7 +53,7 @@ function Update-GotoModule {
 			Write-Host "Please restart your PowerShell session to use the new version." -ForegroundColor Yellow
 		}
 		else {
-			Write-Host "Goto is already at the latest version ($currentVersion)." -ForegroundColor Green
+			Write-Host "Goto is already at the latest version ($($currentModule.Version))." -ForegroundColor Green
 		}
 	}
 	catch {
