@@ -32,11 +32,20 @@ function Update-GotoModule {
 		$currentAliases = $Global:DirectoryAliases.Clone()
 
 		$currentModule = Get-InstalledModule -Name Goto -ErrorAction Stop
-		$onlineModule = Find-Module -Name Goto -ErrorAction Stop
 
-		if ($onlineModule.Version -gt $currentModule.Version) {
+		try {
+			$onlineModule = Find-Module -Name Goto -ErrorAction Stop
+			$newVersion = $onlineModule.Version
+		}
+		catch {
+			Write-Host "Unable to check for updates using Find-Module. Using alternative method." -ForegroundColor Yellow
+			$response = Invoke-RestMethod -Uri "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id eq 'Goto' and IsLatestVersion" -ErrorAction Stop
+			$newVersion = [version]($response.properties.Version)
+		}
+
+		if ($newVersion -gt $currentModule.Version) {
 			Write-Host "Current Goto version: $($currentModule.Version)" -ForegroundColor Cyan
-			Write-Host "New version available: $($onlineModule.Version)" -ForegroundColor Green
+			Write-Host "New version available: $newVersion" -ForegroundColor Green
 
 			Update-Module -Name Goto -Force -ErrorAction Stop
 
@@ -96,9 +105,6 @@ Import-Aliases
 		Add-Content -Path $PROFILE -Value $profileContent
 		Write-Host "Goto module and aliases import have been added to your PowerShell profile." -ForegroundColor Green
 		Write-Host "Please restart your PowerShell session or run '. `$PROFILE' to apply changes." -ForegroundColor Yellow
-	}
-	else {
-		Write-Host "Goto module import is already in your PowerShell profile." -ForegroundColor Cyan
 	}
 }
 
