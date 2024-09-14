@@ -1,7 +1,8 @@
 $script:GotoDataPath = Join-Path -Path $env:APPDATA -ChildPath 'PowerShell\Goto'
 $script:AliasFilePath = Join-Path -Path $script:GotoDataPath -ChildPath "GotoAliases.xml"
+$script:OldAliasFilePath = Join-Path -Path $script:GotoDataPath -ChildPath "GotoAliases.ps1"
 $script:BackupFilePath = Join-Path -Path $script:GotoDataPath -ChildPath "GotoAliases.bak"
-$script:LastUpdateCheckFile = Join-Path -Path $script:GotoDataPath -ChildPath "LastUpdateCheck.txt"
+$script:LastUpdateCheckFile = Join-Path -Path $script:GotoDataPath -ChildPath "LastUpdateCheck.xml"
 
 $Global:DirectoryAliases = @{}
 
@@ -74,16 +75,37 @@ function Update-GotoModule {
 
 function Test-ForUpdates {
 	$currentTime = Get-Date
-	$lastCheckTime = if (Test-Path $script:LastUpdateCheckFile) {
-		[DateTime]::Parse((Get-Content $script:LastUpdateCheckFile))
+	$updateInfo = if (Test-Path $script:LastUpdateCheckFile) {
+		Import-Clixml -Path $script:LastUpdateCheckFile
 	}
  else {
-		$currentTime.AddDays(-31)
+		@{
+			LastCheckTime = $currentTime.AddDays(-31)
+			LatestVersion = $null
+		}
 	}
 
-	if (($currentTime - $lastCheckTime).Days -ge 30) {
+	if (($currentTime - $updateInfo.LastCheckTime).Days -ge 30) {
 		Write-Verbose "Checking for updates..."
-		$currentTime.ToString("o") | Set-Content $script:LastUpdateCheckFile
+		try {
+			$latestVersion = (Find-Module -Name Goto -ErrorAction Stop).Version
+			$currentVersion = (Get-Module -Name Goto).Version
+
+			if ($latestVersion -gt $currentVersion) {
+				Write-Host "New version available: $latestVersion" -ForegroundColor Yellow
+				Write-Host "To update, run the following command:" -ForegroundColor Cyan
+				Write-Host "  goto update" -ForegroundColor Green
+				$updateInfo.LatestVersion = $latestVersion
+			}
+		}
+		catch {
+			Write-Verbose "Failed to check for updates: $_"
+		}
+		$updateInfo.LastCheckTime = $currentTime
+		$updateInfo | Export-Clixml -Path $script:LastUpdateCheckFile
+	}
+	elseif ($updateInfo.LatestVersion -and $updateInfo.LatestVersion -gt (Get-Module -Name Goto).Version) {
+		Write-Host "Reminder: New version $($updateInfo.LatestVersion) is available. Run 'goto update' to update." -ForegroundColor Yellow
 	}
 }
 
@@ -136,43 +158,36 @@ function Invoke-VersionCheck {
 	}
 }
 
-function Import-Aliases {
-	if (Test-Path $script:AliasFilePath) {
-		try {
-			$Global:DirectoryAliases = Import-Clixml -Path $script:AliasFilePath
-			$Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
-				$alias = $_.Key
-				$path = $_.Value
-				Set-Item -Path Function:Global:$("cd$alias") -Value { Set-Location $path }.GetNewClosure()
-			}
-		}
-		catch {
-			Write-Warning "Failed to load aliases from $script:AliasFilePath. Error: $_"
-			$Global:DirectoryAliases = @{}
-		}
-	}
-	else {
-		$Global:DirectoryAliases = @{}
-	}
-}
 
 function Import-Aliases {
 	if (Test-Path $script:AliasFilePath) {
 		try {
 			$Global:DirectoryAliases = Import-Clixml -Path $script:AliasFilePath
-			$Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
-				$alias = $_.Key
-				$path = $_.Value
-				Set-Item -Path Function:Global:$("cd$alias") -Value { Set-Location $path }.GetNewClosure()
-			}
 		}
 		catch {
 			Write-Warning "Failed to load aliases from $script:AliasFilePath. Error: $_"
 			$Global:DirectoryAliases = @{}
 		}
 	}
+	elseif (Test-Path $script:OldAliasFilePath) {
+		try {
+			. $script:OldAliasFilePath
+			Save-Aliases
+			Remove-Item $script:OldAliasFilePath -Force
+		}
+		catch {
+			Write-Warning "Failed to load aliases from $script:OldAliasFilePath. Error: $_"
+			$Global:DirectoryAliases = @{}
+		}
+	}
 	else {
 		$Global:DirectoryAliases = @{}
+	}
+
+	$Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
+		$alias = $_.Key
+		$path = $_.Value
+		Set-Item -Path Function:Global:$("cd$alias") -Value { Set-Location $path }.GetNewClosure()
 	}
 }
 
@@ -376,6 +391,7 @@ function goto {
 # Initialization when loading module
 Initialize-GotoEnvironment
 Import-Aliases
+Test-ForUpdates
 
 # Export of functions
 Export-ModuleMember -Function goto, Import-Aliases, Initialize-GotoEnvironment, Update-GotoModule, Save-Aliases
