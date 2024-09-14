@@ -1,8 +1,7 @@
 $script:GotoDataPath = Join-Path -Path $env:APPDATA -ChildPath 'PowerShell\Goto'
 $script:AliasFilePath = Join-Path -Path $script:GotoDataPath -ChildPath "GotoAliases.xml"
-$script:OldAliasFilePath = Join-Path -Path $script:GotoDataPath -ChildPath "GotoAliases.ps1"
-$script:BackupFilePath = Join-Path -Path $script:GotoDataPath -ChildPath "GotoAliases.bak"
-$script:LastUpdateCheckFile = Join-Path -Path $script:GotoDataPath -ChildPath "LastUpdateCheck.xml"
+$script:UpdateInfoFile = Join-Path -Path $script:GotoDataPath -ChildPath "UpdateInfo.xml"
+
 
 $Global:DirectoryAliases = @{}
 
@@ -29,7 +28,6 @@ function Update-GotoModule {
 		Backup-Aliases
 
 		$currentAliases = $Global:DirectoryAliases.Clone()
-
 		$currentModule = Get-InstalledModule -Name Goto -ErrorAction Stop
 
 		try {
@@ -74,46 +72,48 @@ function Update-GotoModule {
 }
 
 function Test-ForUpdates {
-	$currentTime = Get-Date
-	$updateInfo = if (Test-Path $script:LastUpdateCheckFile) {
-		Import-Clixml -Path $script:LastUpdateCheckFile
+	$updateInfo = if (Test-Path $script:UpdateInfoFile) {
+		Import-Clixml -Path $script:UpdateInfoFile
 	}
  else {
 		@{
-			LastCheckTime = $currentTime.AddDays(-31)
-			LatestVersion = $null
+			LastCheckTime     = (Get-Date).AddDays(-31)
+			LatestVersion     = $null
+			NotificationCount = 0
 		}
 	}
 
-	if (($currentTime - $updateInfo.LastCheckTime).Days -ge 30) {
-		Write-Verbose "Checking for updates..."
+	$currentTime = Get-Date
+	if (($currentTime - $updateInfo.LastCheckTime).Days -ge 7) {
+		$currentVersion = (Get-Module Goto).Version
 		try {
-			$latestVersion = (Find-Module -Name Goto -ErrorAction Stop).Version
-			$currentVersion = (Get-Module -Name Goto).Version
-
+			$latestVersion = (Find-Module Goto -Repository PSGallery -ErrorAction Stop).Version
 			if ($latestVersion -gt $currentVersion) {
-				Write-Host "New version available: $latestVersion" -ForegroundColor Yellow
-				Write-Host "To update, run the following command:" -ForegroundColor Cyan
-				Write-Host "  goto update" -ForegroundColor Green
 				$updateInfo.LatestVersion = $latestVersion
+				$updateInfo.NotificationCount = 0
+				Write-Host "New version $latestVersion available. Run 'goto update' to update." -ForegroundColor Yellow
 			}
 		}
 		catch {
 			Write-Verbose "Failed to check for updates: $_"
 		}
 		$updateInfo.LastCheckTime = $currentTime
-		$updateInfo | Export-Clixml -Path $script:LastUpdateCheckFile
 	}
-	elseif ($updateInfo.LatestVersion -and $updateInfo.LatestVersion -gt (Get-Module -Name Goto).Version) {
-		Write-Host "Reminder: New version $($updateInfo.LatestVersion) is available. Run 'goto update' to update." -ForegroundColor Yellow
+	elseif ($updateInfo.LatestVersion -and $updateInfo.LatestVersion -gt (Get-Module Goto).Version) {
+		if ($updateInfo.NotificationCount -lt 3) {
+			Write-Host "Reminder: New version $($updateInfo.LatestVersion) is available. Run 'goto update' to update." -ForegroundColor Yellow
+			$updateInfo.NotificationCount++
+		}
 	}
+
+	$updateInfo | Export-Clixml -Path $script:UpdateInfoFile
 }
 
 function Initialize-GotoEnvironment {
 	if (-not (Test-Path -Path $script:GotoDataPath)) {
 		New-Item -Path $script:GotoDataPath -ItemType Directory -Force | Out-Null
 	}
-
+	Import-Aliases
 	if (-not (Test-Path -Path $script:AliasFilePath)) {
 		Save-Aliases
 	}
@@ -141,8 +141,6 @@ catch {
 	if ($currentProfileContent -notmatch [regex]::Escape($profileContent)) {
 		Add-Content -Path $PROFILE -Value "`n$profileContent"
 	}
-
-	Test-ForUpdates
 }
 
 function Invoke-VersionCheck {
@@ -163,31 +161,21 @@ function Import-Aliases {
 	if (Test-Path $script:AliasFilePath) {
 		try {
 			$Global:DirectoryAliases = Import-Clixml -Path $script:AliasFilePath
+			$Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
+				$alias = $_.Key
+				$path = $_.Value
+				Set-Item -Path Function:Global:$("cd$alias") -Value { Set-Location $path }.GetNewClosure()
+			}
 		}
 		catch {
-			Write-Warning "Failed to load aliases from $script:AliasFilePath. Error: $_"
+			Write-Warning "Failed to load aliases. Recreating alias file."
 			$Global:DirectoryAliases = @{}
-		}
-	}
-	elseif (Test-Path $script:OldAliasFilePath) {
-		try {
-			. $script:OldAliasFilePath
 			Save-Aliases
-			Remove-Item $script:OldAliasFilePath -Force
-		}
-		catch {
-			Write-Warning "Failed to load aliases from $script:OldAliasFilePath. Error: $_"
-			$Global:DirectoryAliases = @{}
 		}
 	}
 	else {
 		$Global:DirectoryAliases = @{}
-	}
-
-	$Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
-		$alias = $_.Key
-		$path = $_.Value
-		Set-Item -Path Function:Global:$("cd$alias") -Value { Set-Location $path }.GetNewClosure()
+		Save-Aliases
 	}
 }
 
@@ -198,6 +186,31 @@ function Save-Aliases {
 	catch {
 		Write-Warning "Failed to save aliases. Error: $_"
 	}
+}
+
+function Find-SimilarAlias {
+	param (
+		[string]$aliasInput
+	)
+	$normalizedInput = $aliasInput.ToLower()
+	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
+		$_ -like "*$normalizedInput*" -or $normalizedInput -like "*$_*"
+	}
+
+	if ($matchingAliases.Count -eq 1) {
+		return $matchingAliases[0]
+	}
+	elseif ($matchingAliases.Count -gt 1) {
+		Write-Host "Did you mean one of these? Type the number to navigate, or press ENTER to cancel:" -ForegroundColor Yellow
+		for ($i = 0; $i -lt $matchingAliases.Count; $i++) {
+			Write-Host "[$($i+1)]: $($matchingAliases[$i]) -> $($Global:DirectoryAliases[$matchingAliases[$i]])" -ForegroundColor Cyan
+		}
+		$choice = Read-Host "Enter your choice (1-$($matchingAliases.Count))"
+		if ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchingAliases.Count) {
+			return $matchingAliases[[int]$choice - 1]
+		}
+	}
+	return $null
 }
 
 function _goto_print_similar {
@@ -279,34 +292,26 @@ function goto {
 			}
 			'u' {
 				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
-					$aliasPath = $Global:DirectoryAliases[$Alias]
-					$confirmDeletion = Read-Host "Are you sure you want to unregister the alias '$Alias' which points to '$aliasPath'? [Y/N]"
-					if ($confirmDeletion -eq 'Y') {
-						$Global:DirectoryAliases.Remove($Alias)
-						Write-Host "`nAlias '$Alias' unregistered." -ForegroundColor Green
-						Save-Aliases
-					}
-					else {
-						Write-Host "`nAlias unregistration cancelled." -ForegroundColor Yellow
-					}
+					$Global:DirectoryAliases.Remove($Alias)
+					Remove-Item -Path Function:$("cd$Alias") -ErrorAction SilentlyContinue
+					Write-Host "Alias '$Alias' unregistered." -ForegroundColor Green
+					Save-Aliases
 				}
 				else {
-					Write-Warning "`nAlias '$Alias' does not exist." -ForegroundColor Yellow
+					Write-Warning "Alias '$Alias' does not exist."
 				}
 			}
 			'l' {
 				if ($Global:DirectoryAliases.Count -eq 0) {
-					Write-Host "`nNo aliases registered."
+					Write-Host "No aliases registered."
 				}
 				else {
-					$horizontalLine = ([char]0x2500).ToString() * 2
-					$maxAliasLength = ($Global:DirectoryAliases.Keys | Measure-Object -Maximum -Property Length).Maximum + 2
-					Write-Host ""
-					$Global:DirectoryAliases.GetEnumerator() | Sort-Object Name | ForEach-Object {
-						$aliasPadded = $_.Key.PadRight($maxAliasLength)
-						Write-Host "  $aliasPadded" -ForegroundColor Green -NoNewline
-						Write-Host "$horizontalLine>  " -NoNewline
-						Write-Host $_.Value -ForegroundColor Yellow
+					$Global:DirectoryAliases.GetEnumerator() | Sort-Object Name | Format-Table -AutoSize @{
+						Label      = "Alias"
+						Expression = { $_.Key }
+					}, @{
+						Label      = "Path"
+						Expression = { $_.Value }
 					}
 				}
 			}
@@ -375,13 +380,17 @@ function goto {
 				}
 			}
 			default {
-				$selectedAlias = _goto_print_similar -aliasInput $Command
-				if ($selectedAlias) {
-					$path = $Global:DirectoryAliases[$selectedAlias]
+				$targetAlias = $Command
+				if (-not $Global:DirectoryAliases.ContainsKey($targetAlias)) {
+					$targetAlias = Find-SimilarAlias -aliasInput $targetAlias
+				}
+				if ($targetAlias -and $Global:DirectoryAliases.ContainsKey($targetAlias)) {
+					$path = $Global:DirectoryAliases[$targetAlias]
+					Write-Host "Navigating to '$targetAlias' -> '$path'." -ForegroundColor Green
 					Set-Location $path
 				}
 				else {
-					Write-Host "Usage: goto [ r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | <alias>]"
+					Write-Host "Unknown command or alias. Use 'goto l' to list all aliases." -ForegroundColor Yellow
 				}
 			}
 		}
@@ -390,8 +399,10 @@ function goto {
 
 # Initialization when loading module
 Initialize-GotoEnvironment
-Import-Aliases
-Test-ForUpdates
+Start-Job -ScriptBlock {
+	Import-Module Goto
+	Test-ForUpdates
+} | Out-Null
 
 # Export of functions
 Export-ModuleMember -Function goto, Import-Aliases, Initialize-GotoEnvironment, Update-GotoModule, Save-Aliases
@@ -413,6 +424,4 @@ Register-ArgumentCompleter -CommandName 'goto' -ScriptBlock {
 	}
 }
 
-$Global:DirectoryAliases.Keys | ForEach-Object {
-	Export-ModuleMember -Alias "cd$_"
-}
+$Global:DirectoryAliases.Keys | ForEach-Object { Export-ModuleMember -Function "cd$_" }
