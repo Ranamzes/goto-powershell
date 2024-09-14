@@ -86,21 +86,27 @@ function Invoke-VersionCheck {
 }
 
 function Save-Aliases {
+	$aliasDefinitions = $Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
+		"    '$($_.Key)' = '$($_.Value)'"
+	}
+	$aliasFunctions = $Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
+		"function Global:cdFunc_$($_.Key) { Set-Location `$Global:DirectoryAliases['$($_.Key)'] }"
+	}
+	$aliasCommands = $Global:DirectoryAliases.Keys | ForEach-Object {
+		"Set-Alias -Name 'cd$_' -Value 'Global:cdFunc_$_' -Scope Global"
+	}
+
 	$aliasContent = @"
 # Goto Directory Aliases
 `$Global:DirectoryAliases = @{
-$($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "    '$($_.Key)' = '$($_.Value)'" } -join "`n")
+$($aliasDefinitions -join "`n")
 }
 
 # Create functions for cd aliases
-$($Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
-    "function Global:cdFunc_$($_.Key) { Set-Location `$Global:DirectoryAliases['$($_.Key)'] }"
-} -join "`n")
+$($aliasFunctions -join "`n")
 
 # Create cd aliases
-$($Global:DirectoryAliases.Keys | ForEach-Object {
-    "Set-Alias -Name 'cd$_' -Value 'Global:cdFunc_$_' -Scope Global"
-} -join "`n")
+$($aliasCommands -join "`n")
 "@
 
 	$aliasContent | Set-Content -Path $script:AliasFilePath
@@ -112,7 +118,9 @@ function Import-Aliases {
 		try {
 			. $script:AliasFilePath
 			$Global:DirectoryAliases.Keys | ForEach-Object {
-				Set-Alias -Name "cd$_" -Value "Global:cdFunc_$_" -Scope Global
+				if (Test-Path Function::Global:cdFunc_$_) {
+					Set-Alias -Name "cd$_" -Value "Global:cdFunc_$_" -Scope Global
+				}
 			}
 		}
 		catch {
@@ -166,13 +174,13 @@ function _goto_print_similar {
 		$index = 1
 		foreach ($alias in $matchedAliases) {
 			$spacesToAdd = $maxAliasLength - $alias.Alias.Length
-			$spacesToAdd = [Math]::Max(0, $spacesToAdd)
+			$spacesToAdd = [Math]::Max(0, $spacesToAdd)  # Ensure non-negative value
 			$aliasDisplay = $alias.Alias + (' ' * $spacesToAdd)
 			Write-Host "[$index]: $aliasDisplay -> $($alias.Path)" -ForegroundColor Cyan
 			$index++
 		}
 
-		Write-Host ""
+		Write-Host "" # Additional indentation before selection
 		$choice = Read-Host "Enter your choice (1-$($matchedAliases.Count))"
 		if ([string]::IsNullOrWhiteSpace($choice)) {
 			Write-Host "No selection made. No action taken." -ForegroundColor Red
@@ -180,7 +188,7 @@ function _goto_print_similar {
 		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
 			$selectedAlias = $matchedAliases[[int]$choice - 1].Alias
 			$spacesToAdd = $maxAliasLength - $selectedAlias.Length
-			$spacesToAdd = [Math]::Max(0, $spacesToAdd)
+			$spacesToAdd = [Math]::Max(0, $spacesToAdd)  # Ensure non-negative value
 			$aliasDisplay = $selectedAlias + (' ' * $spacesToAdd)
 			$path = $Global:DirectoryAliases[$selectedAlias]
 			Write-Host "Navigating to '$aliasDisplay' -> '$path'." -ForegroundColor Green
@@ -335,11 +343,7 @@ function goto {
 			}
 			default {
 				$selectedAlias = _goto_print_similar -aliasInput $Command
-				if ($selectedAlias) {
-					$path = $Global:DirectoryAliases[$selectedAlias]
-					Set-Location $path
-				}
-				else {
+				if ($selectedAlias -eq $null) {
 					Write-Host "Usage: goto [ r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | <alias>]"
 				}
 			}
