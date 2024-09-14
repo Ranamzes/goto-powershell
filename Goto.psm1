@@ -72,6 +72,21 @@ function Update-GotoModule {
 	}
 }
 
+function Test-ForUpdates {
+	$currentTime = Get-Date
+	$lastCheckTime = if (Test-Path $script:LastUpdateCheckFile) {
+		[DateTime]::Parse((Get-Content $script:LastUpdateCheckFile))
+	}
+ else {
+		$currentTime.AddDays(-31)
+	}
+
+	if (($currentTime - $lastCheckTime).Days -ge 30) {
+		Write-Verbose "Checking for updates..."
+		$currentTime.ToString("o") | Set-Content $script:LastUpdateCheckFile
+	}
+}
+
 function Initialize-GotoEnvironment {
 	if (-not (Test-Path -Path $script:GotoDataPath)) {
 		New-Item -Path $script:GotoDataPath -ItemType Directory -Force | Out-Null
@@ -81,7 +96,19 @@ function Initialize-GotoEnvironment {
 		Save-Aliases
 	}
 
-	$profileContent = "Import-Module Goto -DisableNameChecking"
+	$profileContent = @"
+Import-Module Goto -DisableNameChecking
+
+# Error handling for WinGet
+`$ErrorActionPreference = 'Continue'
+try {
+    `$null = Get-Command winget -ErrorAction Stop
+    Import-Module Microsoft.WinGet.Client -ErrorAction SilentlyContinue
+}
+catch {
+    Write-Verbose "WinGet not detected. Some features may be unavailable."
+}
+"@
 
 	if (-not (Test-Path -Path $PROFILE)) {
 		New-Item -Path $PROFILE -ItemType File -Force | Out-Null
@@ -93,7 +120,7 @@ function Initialize-GotoEnvironment {
 		Add-Content -Path $PROFILE -Value "`n$profileContent"
 	}
 
-	Check-ForUpdates
+	Test-ForUpdates
 }
 
 function Invoke-VersionCheck {
@@ -112,13 +139,31 @@ function Invoke-VersionCheck {
 function Import-Aliases {
 	if (Test-Path $script:AliasFilePath) {
 		try {
-			$aliasData = Import-Clixml -Path $script:AliasFilePath
-			$Global:DirectoryAliases = $aliasData
-
+			$Global:DirectoryAliases = Import-Clixml -Path $script:AliasFilePath
 			$Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
 				$alias = $_.Key
 				$path = $_.Value
-				Set-Alias -Name "cd$alias" -Value ([ScriptBlock]::Create("Set-Location '$path'")) -Scope Global
+				Set-Item -Path Function:Global:$("cd$alias") -Value { Set-Location $path }.GetNewClosure()
+			}
+		}
+		catch {
+			Write-Warning "Failed to load aliases from $script:AliasFilePath. Error: $_"
+			$Global:DirectoryAliases = @{}
+		}
+	}
+	else {
+		$Global:DirectoryAliases = @{}
+	}
+}
+
+function Import-Aliases {
+	if (Test-Path $script:AliasFilePath) {
+		try {
+			$Global:DirectoryAliases = Import-Clixml -Path $script:AliasFilePath
+			$Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
+				$alias = $_.Key
+				$path = $_.Value
+				Set-Item -Path Function:Global:$("cd$alias") -Value { Set-Location $path }.GetNewClosure()
 			}
 		}
 		catch {
@@ -133,7 +178,7 @@ function Import-Aliases {
 
 function Save-Aliases {
 	try {
-		$Global:DirectoryAliases | Export-Clixml -Path $script:AliasFilePath
+		$Global:DirectoryAliases | Export-Clixml -Path $script:AliasFilePath -ErrorAction Stop
 	}
 	catch {
 		Write-Warning "Failed to save aliases. Error: $_"
@@ -144,11 +189,11 @@ function _goto_print_similar {
 	param([string]$aliasInput)
 
 	$normalizedInput = $aliasInput.ToLower()
-	$matches = $Global:DirectoryAliases.Keys | Where-Object {
+	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
 		$_ -like "*$normalizedInput*"
 	}
 
-	$matchedAliases = $matches | ForEach-Object {
+	$matchedAliases = $matchingAliases  | ForEach-Object {
 		[PSCustomObject]@{
 			Alias = $_
 			Path  = $Global:DirectoryAliases[$_]
@@ -175,25 +220,6 @@ function _goto_print_similar {
 		}
 	}
 	return $null
-}
-
-function Check-ForUpdates {
-	$currentTime = Get-Date
-	$lastCheckTime = if (Test-Path $script:LastUpdateCheckFile) {
-		[DateTime]::Parse((Get-Content $script:LastUpdateCheckFile))
-	}
- else {
-		$currentTime.AddDays(-31)
-	}
-
-	if (($currentTime - $lastCheckTime).Days -ge 30) {
-		Write-Host "Checking for updates..." -ForegroundColor Cyan
-		$latestVersion = (Find-Module Goto).Version
-		if ($latestVersion -gt (Get-Module Goto).Version) {
-			Write-Host "New version available: $latestVersion" -ForegroundColor Yellow
-		}
-		$currentTime.ToString("o") | Set-Content $script:LastUpdateCheckFile
-	}
 }
 
 function goto {
@@ -224,7 +250,7 @@ function goto {
 					if (Test-Path $Path) {
 						$resolvedPath = Resolve-Path -Path $Path | Select-Object -ExpandProperty Path
 						$Global:DirectoryAliases[$Alias] = $resolvedPath
-						Set-Alias -Name "cd$Alias" -Value ([ScriptBlock]::Create("Set-Location '$resolvedPath'")) -Scope Global
+						Set-Item -Path Function:Global:$("cd$Alias") -Value { Set-Location $resolvedPath }.GetNewClosure()
 						Write-Host "Alias '$Alias' registered for path '$resolvedPath'." -ForegroundColor Green
 						Save-Aliases
 					}

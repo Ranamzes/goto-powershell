@@ -1,6 +1,6 @@
 @{
 	RootModule        = 'Goto.psm1'
-	ModuleVersion     = '1.4.990'
+	ModuleVersion     = '1.4.991'
 	GUID              = '504b4162-e8df-5f67-b999-3f46ac2fa586'
 	Author            = 'Re•MART'
 	Description       = 'PowerShell goto navigation - Easily manage and navigate to your frequently used directories using simple aliases.'
@@ -12,7 +12,7 @@
 			Tags         = @('Navigation', 'Productivity', 'Aliases', 'Directory')
 			LicenseUri   = 'https://github.com/Ranamzes/goto-powershell/blob/main/LICENSE'
 			ProjectUri   = 'https://github.com/Ranamzes/goto-powershell'
-			ReleaseNotes = 'Add winget catch'
+			ReleaseNotes = 'Fix warnings'
 		}
 	}
 }
