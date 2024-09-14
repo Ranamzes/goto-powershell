@@ -57,9 +57,6 @@ Import-Module Goto
 		Write-Host "Goto module and aliases import has been added to your PowerShell profile." -ForegroundColor Green
 		Write-Host "Please restart your PowerShell session or run '. `$PROFILE' to apply changes." -ForegroundColor Yellow
 	}
-	else {
-		Write-Host "Goto module and aliases are already configured in your PowerShell profile." -ForegroundColor Cyan
-	}
 }
 
 function Invoke-VersionCheck {
@@ -94,7 +91,6 @@ function Import-Aliases {
 	if (Test-Path $script:AliasFilePath) {
 		try {
 			. $script:AliasFilePath
-			Write-Host "Aliases successfully imported from $script:AliasFilePath" -ForegroundColor Green
 		}
 		catch {
 			Write-Warning "Failed to load aliases from $script:AliasFilePath. Error: $_"
@@ -102,7 +98,6 @@ function Import-Aliases {
 		}
 	}
 	else {
-		Write-Host "No aliases file found at $script:AliasFilePath. Starting with an empty aliases list." -ForegroundColor Yellow
 		$Global:DirectoryAliases = @{}
 	}
 }
