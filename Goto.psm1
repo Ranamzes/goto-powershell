@@ -92,8 +92,11 @@ Import-Aliases
 
 	if ($currentProfileContent -notmatch [regex]::Escape($profileContent)) {
 		Add-Content -Path $PROFILE -Value $profileContent
-		Write-Host "Goto module and aliases import has been added to your PowerShell profile." -ForegroundColor Green
+		Write-Host "Goto module and aliases import have been added to your PowerShell profile." -ForegroundColor Green
 		Write-Host "Please restart your PowerShell session or run '. `$PROFILE' to apply changes." -ForegroundColor Yellow
+	}
+	else {
+		Write-Host "Goto module import is already in your PowerShell profile." -ForegroundColor Cyan
 	}
 }
 
