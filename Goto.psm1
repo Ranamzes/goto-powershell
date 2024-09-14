@@ -39,11 +39,24 @@ function Initialize-GotoEnvironment {
 		New-Item -Path $script:GotoDataPath -ItemType Directory -Force | Out-Null
 	}
 
+	if (-not (Test-Path -Path $script:AliasFilePath)) {
+		@"
+# Goto Directory Aliases
+`$Global:DirectoryAliases = @{}
+
+# Create functions for cd aliases
+
+# Create cd aliases
+"@ | Set-Content -Path $script:AliasFilePath
+	}
+
 	$profileContent = @"
 
 # Auto-generated import for Goto module
 Import-Module Goto
-. '$script:AliasFilePath'
+if (Test-Path '$script:AliasFilePath') {
+    . '$script:AliasFilePath'
+}
 "@
 
 	if (-not (Test-Path -Path $PROFILE)) {
@@ -109,6 +122,7 @@ function Import-Aliases {
 	}
 	else {
 		$Global:DirectoryAliases = @{}
+		Save-Aliases
 	}
 }
 
