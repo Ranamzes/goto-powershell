@@ -72,8 +72,6 @@ function Initialize-GotoEnvironment {
 # Goto Directory Aliases
 `$Global:DirectoryAliases = @{}
 
-# Create functions for cd aliases
-
 # Create cd aliases
 "@ | Set-Content -Path $script:AliasFilePath
 	}
@@ -82,9 +80,7 @@ function Initialize-GotoEnvironment {
 
 # Auto-generated import for Goto module
 Import-Module Goto
-if (Test-Path '$script:AliasFilePath') {
-    . '$script:AliasFilePath'
-}
+Import-Aliases
 "@
 
 	if (-not (Test-Path -Path $PROFILE)) {
@@ -94,7 +90,7 @@ if (Test-Path '$script:AliasFilePath') {
 	$currentProfileContent = Get-Content -Path $PROFILE -Raw -ErrorAction SilentlyContinue
 
 	if ($currentProfileContent -notmatch [regex]::Escape($profileContent)) {
-		Add-Content -Path $PROFILE -Value "`n$profileContent"
+		Add-Content -Path $PROFILE -Value $profileContent
 		Write-Host "Goto module and aliases import has been added to your PowerShell profile." -ForegroundColor Green
 		Write-Host "Please restart your PowerShell session or run '. `$PROFILE' to apply changes." -ForegroundColor Yellow
 	}
@@ -116,14 +112,21 @@ function Invoke-VersionCheck {
 function Save-Aliases {
 	Backup-Aliases
 
+	$aliasDefinitions = $Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
+		"    '$($_.Key)' = '$($_.Value)'"
+	}
+	$cdAliases = $Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
+		"Set-Alias -Name cd$($_.Key) -Value { Set-Location `$Global:DirectoryAliases['$($_.Key)'] }"
+	}
+
 	$aliasContent = @"
 # Goto Directory Aliases
 `$Global:DirectoryAliases = @{
-$($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "    '$($_.Key)' = '$($_.Value)'" } -join "`n")
+$($aliasDefinitions -join "`n")
 }
 
 # Create cd aliases
-$($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "Set-Alias -Name cd$($_.Key) -Value { Set-Location `$Global:DirectoryAliases['$($_.Key)'] }" } -join "`n")
+$($cdAliases -join "`n")
 "@
 
 	$aliasContent | Set-Content -Path $script:AliasFilePath
@@ -325,11 +328,13 @@ function goto {
 				}
 			}
 			default {
-				Write-Host "Usage: goto [ r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | <alias>]"
 				$selectedAlias = _goto_print_similar -aliasInput $Command
 				if ($selectedAlias) {
 					$path = $Global:DirectoryAliases[$selectedAlias]
 					Set-Location $path
+				}
+				else {
+					Write-Host "Usage: goto [ r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | <alias>]"
 				}
 			}
 		}
