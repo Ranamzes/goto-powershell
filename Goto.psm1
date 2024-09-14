@@ -1,6 +1,7 @@
 $script:PowerShellDataPath = [System.IO.Path]::Combine([Environment]::GetFolderPath('ApplicationData'), 'PowerShell')
-$script:GotoDataPath = Join-Path -Path $script:PowerShellDataPath -ChildPath 'Goto'
+$script:GotoDataPath = Join-Path -Path $env:APPDATA -ChildPath 'PowerShell\Goto'
 $script:AliasFilePath = Join-Path -Path $script:GotoDataPath -ChildPath "GotoAliases.ps1"
+
 
 $Global:DirectoryAliases = @{}
 
@@ -115,18 +116,21 @@ function Save-Aliases {
 	$aliasDefinitions = $Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
 		"    '$($_.Key)' = '$($_.Value)'"
 	}
+	$aliasDefinitions = $aliasDefinitions -join "`n"
+
 	$cdAliases = $Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
-		"Set-Alias -Name cd$($_.Key) -Value { Set-Location `$Global:DirectoryAliases['$($_.Key)'] }"
+		"Set-Alias -Name cd$($_.Key) -Value { Set-Location `$Global:DirectoryAliases['$($_.Key)'] } -Scope Global"
 	}
+	$cdAliases = $cdAliases -join "`n"
 
 	$aliasContent = @"
 # Goto Directory Aliases
 `$Global:DirectoryAliases = @{
-$($aliasDefinitions -join "`n")
+$aliasDefinitions
 }
 
 # Create cd aliases
-$($cdAliases -join "`n")
+$cdAliases
 "@
 
 	$aliasContent | Set-Content -Path $script:AliasFilePath
@@ -138,9 +142,7 @@ function Import-Aliases {
 		try {
 			. $script:AliasFilePath
 			$Global:DirectoryAliases.Keys | ForEach-Object {
-				if (Test-Path Function::Global:cdFunc_$_) {
-					Set-Alias -Name "cd$_" -Value "Global:cdFunc_$_" -Scope Global
-				}
+				Set-Alias -Name "cd$_" -Value { Set-Location $Global:DirectoryAliases[$_] } -Scope Global
 			}
 		}
 		catch {
