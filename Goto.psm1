@@ -293,26 +293,36 @@ function goto {
 
 				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
 					$path = $Global:DirectoryAliases[$Alias]
-					Write-Host "`nPushed current directory '$currentPath' to stack and moved to alias '$Alias' at path '$path'." -ForegroundColor Green
+					Write-Host "Pushed current directory '$currentPath' to stack and moved to alias '$Alias' at path '$path'." -ForegroundColor Green
 					Set-Location $path
 				}
 				else {
 					if (-not [string]::IsNullOrWhiteSpace($Alias)) {
 						$selectedAlias = _goto_print_similar -aliasInput $Alias
-						Write-Host "`nPushed current directory '$currentPath' to stack and moved to alias." -ForegroundColor Green
+						if ($selectedAlias) {
+							$path = $Global:DirectoryAliases[$selectedAlias]
+							Write-Host "Pushed current directory '$currentPath' to stack and moved to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
+							Set-Location $path
+						}
+						else {
+							Pop-Location
+							Write-Host "No matching alias found. Current directory was not changed." -ForegroundColor Yellow
+						}
 					}
 					else {
-						Write-Host "`nNo alias specified. Pushed current directory '$currentPath' to stack." -ForegroundColor Yellow
+						Write-Host "Pushed current directory '$currentPath' to stack." -ForegroundColor Yellow
 					}
 				}
 			}
 			'o' {
 				try {
+					$previousPath = (Get-Location).Path
 					Pop-Location
-					Write-Host "`nPopped and moved to the top location on the stack." -ForegroundColor Green
+					$newPath = (Get-Location).Path
+					Write-Host "Popped and moved from '$previousPath' to '$newPath'." -ForegroundColor Green
 				}
 				catch {
-					Write-Warning "`nDirectory stack is empty or an error occurred." -ForegroundColor Yellow
+					Write-Warning "Directory stack is empty or an error occurred."
 				}
 			}
 			default {
