@@ -1,22 +1,21 @@
-$script:PowerShellDataPath = [System.IO.Path]::Combine([Environment]::GetFolderPath('ApplicationData'), 'PowerShell')
 $script:GotoDataPath = Join-Path -Path $env:APPDATA -ChildPath 'PowerShell\Goto'
 $script:AliasFilePath = Join-Path -Path $script:GotoDataPath -ChildPath "GotoAliases.ps1"
+$script:BackupFilePath = Join-Path -Path $script:GotoDataPath -ChildPath "GotoAliases.bak"
+
 
 
 $Global:DirectoryAliases = @{}
 
 function Backup-Aliases {
-	$backupPath = Join-Path $env:USERPROFILE "PowerShellScripts\DirectoryAliases.json.bak"
 	if (Test-Path $script:AliasFilePath) {
-		Copy-Item -Path $script:AliasFilePath -Destination $backupPath -Force
-		Write-Host "Aliases backed up to $backupPath" -ForegroundColor Green
+		Copy-Item -Path $script:AliasFilePath -Destination $script:BackupFilePath -Force
+		Write-Host "Aliases backed up to $script:BackupFilePath" -ForegroundColor Green
 	}
 }
 
 function Restore-AliasesFromBackup {
-	$backupPath = Join-Path $env:USERPROFILE "PowerShellScripts\DirectoryAliases.json.bak"
-	if (Test-Path $backupPath) {
-		Copy-Item -Path $backupPath -Destination $script:AliasFilePath -Force
+	if (Test-Path $script:BackupFilePath) {
+		Copy-Item -Path $script:BackupFilePath -Destination $script:AliasFilePath -Force
 		Write-Host "Aliases restored from backup." -ForegroundColor Green
 		Import-Aliases
 	}
@@ -80,20 +79,10 @@ function Initialize-GotoEnvironment {
 	}
 
 	if (-not (Test-Path -Path $script:AliasFilePath)) {
-		@"
-# Goto Directory Aliases
-`$Global:DirectoryAliases = @{}
-
-# Create cd aliases
-"@ | Set-Content -Path $script:AliasFilePath
+		Save-Aliases
 	}
 
-	$profileContent = @"
-
-# Auto-generated import for Goto module
-Import-Module Goto
-Import-Aliases
-"@
+	$profileContent = "Import-Module Goto -DisableNameChecking"
 
 	if (-not (Test-Path -Path $PROFILE)) {
 		New-Item -Path $PROFILE -ItemType File -Force | Out-Null
@@ -102,9 +91,7 @@ Import-Aliases
 	$currentProfileContent = Get-Content -Path $PROFILE -Raw -ErrorAction SilentlyContinue
 
 	if ($currentProfileContent -notmatch [regex]::Escape($profileContent)) {
-		Add-Content -Path $PROFILE -Value $profileContent
-		Write-Host "Goto module and aliases import have been added to your PowerShell profile." -ForegroundColor Green
-		Write-Host "Please restart your PowerShell session or run '. `$PROFILE' to apply changes." -ForegroundColor Yellow
+		Add-Content -Path $PROFILE -Value "`n$profileContent"
 	}
 }
 
@@ -122,30 +109,17 @@ function Invoke-VersionCheck {
 }
 
 function Save-Aliases {
-	Backup-Aliases
-
-	$aliasDefinitions = $Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
-		"    '$($_.Key)' = '$($_.Value)'"
-	}
-	$aliasDefinitions = $aliasDefinitions -join "`n"
-
-	$cdAliases = $Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
-		"Set-Alias -Name cd$($_.Key) -Value { Set-Location `$Global:DirectoryAliases['$($_.Key)'] } -Scope Global"
-	}
-	$cdAliases = $cdAliases -join "`n"
-
 	$aliasContent = @"
 # Goto Directory Aliases
 `$Global:DirectoryAliases = @{
-$aliasDefinitions
+$((($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "    '$($_.Key)' = '$($_.Value)'" }) -join "`n"))
 }
 
 # Create cd aliases
-$cdAliases
+$(($Global:DirectoryAliases.Keys | ForEach-Object { "Set-Alias -Name cd$_ -Value { Set-Location `$Global:DirectoryAliases['$_'] } -Scope Global" }) -join "`n")
 "@
 
 	$aliasContent | Set-Content -Path $script:AliasFilePath
-	Write-Host "Aliases saved to $script:AliasFilePath" -ForegroundColor Green
 }
 
 function Import-Aliases {
@@ -153,7 +127,9 @@ function Import-Aliases {
 		try {
 			. $script:AliasFilePath
 			$Global:DirectoryAliases.Keys | ForEach-Object {
-				Set-Alias -Name "cd$_" -Value { Set-Location $Global:DirectoryAliases[$_] } -Scope Global
+				$alias = $_
+				$path = $Global:DirectoryAliases[$alias]
+				Set-Alias -Name "cd$alias" -Value { Set-Location $path } -Scope Global
 			}
 		}
 		catch {
@@ -163,7 +139,6 @@ function Import-Aliases {
 	}
 	else {
 		$Global:DirectoryAliases = @{}
-		Save-Aliases
 	}
 }
 
@@ -357,7 +332,6 @@ function goto {
 # Initialization when loading module
 Initialize-GotoEnvironment
 Import-Aliases
-Invoke-VersionCheck
 
 # Export of functions
 Export-ModuleMember -Function goto, Import-Aliases, Initialize-GotoEnvironment, Update-GotoModule, Save-Aliases
@@ -377,4 +351,8 @@ Register-ArgumentCompleter -CommandName 'goto' -ScriptBlock {
 			[System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', "Perform $_ operation")
 		}
 	}
+}
+
+$Global:DirectoryAliases.Keys | ForEach-Object {
+	Export-ModuleMember -Alias "cd$_"
 }
