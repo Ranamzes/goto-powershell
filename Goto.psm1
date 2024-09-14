@@ -109,26 +109,24 @@ function Invoke-VersionCheck {
 }
 
 function Save-Aliases {
-	$aliasContent = @"
-# Goto Directory Aliases
-`$Global:DirectoryAliases = @{
-$((($Global:DirectoryAliases.GetEnumerator() | ForEach-Object { "    '$($_.Key)' = '$($_.Value)'" }) -join "`n"))
-}
-
-# Create cd aliases
-$(($Global:DirectoryAliases.Keys | ForEach-Object { "Set-Alias -Name cd$_ -Value { Set-Location `$Global:DirectoryAliases['$_'] } -Scope Global" }) -join "`n")
-"@
-
-	$aliasContent | Set-Content -Path $script:AliasFilePath
+	try {
+		$Global:DirectoryAliases | Export-Clixml -Path $script:AliasFilePath
+		Write-Host "Aliases saved successfully." -ForegroundColor Green
+	}
+	catch {
+		Write-Warning "Failed to save aliases. Error: $_"
+	}
 }
 
 function Import-Aliases {
 	if (Test-Path $script:AliasFilePath) {
 		try {
-			. $script:AliasFilePath
-			$Global:DirectoryAliases.Keys | ForEach-Object {
-				$alias = $_
-				$path = $Global:DirectoryAliases[$alias]
+			$aliasData = Import-Clixml -Path $script:AliasFilePath
+			$Global:DirectoryAliases = $aliasData
+
+			$Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
+				$alias = $_.Key
+				$path = $_.Value
 				Set-Alias -Name "cd$alias" -Value { Set-Location $path } -Scope Global
 			}
 		}
@@ -206,26 +204,17 @@ function goto {
 				if (-not [string]::IsNullOrWhiteSpace($Alias) -and -not [string]::IsNullOrWhiteSpace($Path)) {
 					if (Test-Path $Path) {
 						$resolvedPath = Resolve-Path -Path $Path | Select-Object -ExpandProperty Path
-						if ($Global:DirectoryAliases.ContainsKey($Alias)) {
-							$currentPath = $Global:DirectoryAliases[$Alias]
-							if ($currentPath -ne $resolvedPath) {
-								$overwriteConfirmation = Read-Host "`nAlias '$Alias' already exists for path '$currentPath'. Overwrite? [Y/N]"
-								if ($overwriteConfirmation -ne 'Y') {
-									Write-Host "`nAlias registration cancelled." -ForegroundColor Yellow
-									return
-								}
-							}
-						}
 						$Global:DirectoryAliases[$Alias] = $resolvedPath
-						Write-Host "`nAlias '$Alias' registered for path '$resolvedPath'." -ForegroundColor Green
+						Set-Alias -Name "cd$Alias" -Value { Set-Location $resolvedPath } -Scope Global
+						Write-Host "Alias '$Alias' registered for path '$resolvedPath'." -ForegroundColor Green
 						Save-Aliases
 					}
 					else {
-						Write-Warning "`nThe specified path does not exist." -ForegroundColor Yellow
+						Write-Warning "The specified path does not exist."
 					}
 				}
 				else {
-					Write-Warning "`nAlias name or path not specified. Usage: goto r <alias_name> <path>" -ForegroundColor Yellow
+					Write-Warning "Alias name or path not specified. Usage: goto r <alias_name> <path>"
 				}
 			}
 			'u' {
