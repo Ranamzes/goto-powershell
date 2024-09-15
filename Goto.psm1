@@ -253,7 +253,7 @@ function _goto_print_similar {
 		$path = $Global:DirectoryAliases[$selectedAlias]
 		Write-Host "Only one matching alias found: '$selectedAlias' -> '$path'. Navigating..." -ForegroundColor Green
 		Set-Location $path
-		return $selectedAlias
+		return $true
 	}
 	elseif ($matchedAliases.Count -gt 1) {
 		Write-Host "`nDid you mean one of these? Type the number to navigate, or press ENTER to cancel:" -ForegroundColor Yellow
@@ -273,7 +273,7 @@ function _goto_print_similar {
 			$path = $Global:DirectoryAliases[$selectedAlias]
 			Write-Host "Navigating to '$selectedAlias' -> '$path'." -ForegroundColor Green
 			Set-Location $path
-			return $selectedAlias
+			return $true
 		}
 		else {
 			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
@@ -282,7 +282,7 @@ function _goto_print_similar {
 	else {
 		Write-Host "No similar aliases found for '$aliasInput'." -ForegroundColor Red
 	}
-	return $null
+	return $false
 }
 
 function goto {
@@ -348,14 +348,22 @@ function goto {
 			}
 			'l' {
 				if ($Global:DirectoryAliases.Count -eq 0) {
-					Write-Host "No aliases registered."
+					Write-Host "No aliases registered." -ForegroundColor Yellow
 				}
 				else {
 					$maxAliasLength = ($Global:DirectoryAliases.Keys | Measure-Object -Maximum -Property Length).Maximum
+					$maxPathLength = ($Global:DirectoryAliases.Values | Measure-Object -Maximum -Property Length).Maximum
+					Write-Host "`nRegistered Aliases:" -ForegroundColor Cyan
+					Write-Host ("-" * (4 + $maxAliasLength + 4 + $maxPathLength)) -ForegroundColor DarkGray
 					$Global:DirectoryAliases.GetEnumerator() | Sort-Object Name | ForEach-Object {
 						$aliasDisplay = $_.Key.PadRight($maxAliasLength)
-						Write-Host "$aliasDisplay -> $($_.Value)" -ForegroundColor Cyan
+						$pathDisplay = $_.Value.PadRight($maxPathLength)
+						Write-Host "  " -NoNewline
+						Write-Host $aliasDisplay -ForegroundColor Green -NoNewline
+						Write-Host " -> " -ForegroundColor DarkGray -NoNewline
+						Write-Host $pathDisplay -ForegroundColor Yellow
 					}
+					Write-Host ("-" * (4 + $maxAliasLength + 4 + $maxPathLength)) -ForegroundColor DarkGray
 				}
 			}
 			'x' {
@@ -423,7 +431,10 @@ function goto {
 				}
 			}
 			default {
-				_goto_print_similar -aliasInput $Command
+				$result = _goto_print_similar -aliasInput $Command
+				if (-not $result) {
+					Write-Host "Usage: goto [ r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | <alias>]" -ForegroundColor Yellow
+				}
 			}
 		}
 	}
