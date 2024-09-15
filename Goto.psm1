@@ -113,12 +113,16 @@ function Initialize-GotoEnvironment {
 	if (-not (Test-Path -Path $script:GotoDataPath)) {
 		New-Item -Path $script:GotoDataPath -ItemType Directory -Force | Out-Null
 	}
+
 	Import-Aliases
+
 	if (-not (Test-Path -Path $script:AliasFilePath)) {
 		Save-Aliases
 	}
 
 	$profileContent = @"
+
+# Import Goto module
 Import-Module Goto -DisableNameChecking
 
 # Error handling for WinGet
@@ -140,7 +144,11 @@ catch {
 
 	if ($currentProfileContent -notmatch [regex]::Escape($profileContent)) {
 		Add-Content -Path $PROFILE -Value "`n$profileContent"
+		Write-Host "Goto module import and WinGet error handling have been added to your PowerShell profile." -ForegroundColor Green
+		Write-Host "Please restart your PowerShell session or run '. `$PROFILE' to apply changes." -ForegroundColor Yellow
 	}
+
+	Test-ForUpdates
 }
 
 function Invoke-VersionCheck {
@@ -164,7 +172,8 @@ function Import-Aliases {
 			$Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
 				$alias = $_.Key
 				$path = $_.Value
-				Set-Item -Path Function:Global:$("cd$alias") -Value { Set-Location $using:path }.GetNewClosure()
+				Set-Alias -Name $alias -Value (Get-Command -Name Set-Location) -Force -Scope Global
+				Set-Item -Path "Alias:$alias" -Value $path -Force
 			}
 		}
 		catch {
@@ -182,6 +191,7 @@ function Import-Aliases {
 function Save-Aliases {
 	try {
 		$Global:DirectoryAliases | Export-Clixml -Path $script:AliasFilePath -ErrorAction Stop
+		Import-Aliases
 	}
 	catch {
 		Write-Warning "Failed to save aliases. Error: $_"
@@ -275,7 +285,6 @@ function _goto_print_similar {
 	return $null
 }
 
-
 function goto {
 	[CmdletBinding()]
 	param(
@@ -304,6 +313,8 @@ function goto {
 					if (Test-Path $Path) {
 						$resolvedPath = Resolve-Path -Path $Path | Select-Object -ExpandProperty Path
 						$Global:DirectoryAliases[$Alias] = $resolvedPath
+						Set-Alias -Name $Alias -Value (Get-Command -Name Set-Location) -Force -Scope Global
+						Set-Item -Path "Alias:$Alias" -Value $resolvedPath -Force
 						Write-Host "Alias '$Alias' registered for path '$resolvedPath'." -ForegroundColor Green
 						Save-Aliases
 					}
@@ -323,6 +334,7 @@ function goto {
 					$confirmation = Read-Host "Are you sure you want to unregister the alias '$Alias' which points to '$($Global:DirectoryAliases[$Alias])'? [Y/N]"
 					if ($confirmation -eq 'Y') {
 						$Global:DirectoryAliases.Remove($Alias)
+						Remove-Item -Path "Alias:$Alias" -Force -ErrorAction SilentlyContinue
 						Write-Host "Alias '$Alias' unregistered." -ForegroundColor Green
 						Save-Aliases
 					}
@@ -339,12 +351,10 @@ function goto {
 					Write-Host "No aliases registered."
 				}
 				else {
-					$Global:DirectoryAliases.GetEnumerator() | Sort-Object Name | Format-Table -AutoSize @{
-						Label      = "Alias"
-						Expression = { $_.Key }
-					}, @{
-						Label      = "Path"
-						Expression = { $_.Value }
+					$maxAliasLength = ($Global:DirectoryAliases.Keys | Measure-Object -Maximum -Property Length).Maximum
+					$Global:DirectoryAliases.GetEnumerator() | Sort-Object Name | ForEach-Object {
+						$aliasDisplay = $_.Key.PadRight($maxAliasLength)
+						Write-Host "$aliasDisplay -> $($_.Value)" -ForegroundColor Cyan
 					}
 				}
 			}
