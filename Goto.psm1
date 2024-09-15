@@ -222,7 +222,7 @@ function _goto_print_similar {
 		$inputChars = $normalizedInput.ToCharArray()
 		$aliasChars = $alias.ToCharArray()
 		$matchingCharsCount = ($inputChars | Where-Object { $aliasChars -contains $_ }).Count
-		$matchingCharsCount -gt 1
+		$matchingCharsCount -eq $inputChars.Count
 	}
 
 	$matchedAliases = $matchingAliases | ForEach-Object {
@@ -241,10 +241,7 @@ function _goto_print_similar {
 	if ($matchedAliases.Count -eq 1) {
 		$selectedAlias = $matchedAliases[0].Alias
 		$path = $Global:DirectoryAliases[$selectedAlias]
-		$spacesToAdd = $maxAliasLength - $selectedAlias.Length
-		$spacesToAdd = [Math]::Max(0, $spacesToAdd)
-		$aliasDisplay = $selectedAlias + (' ' * $spacesToAdd)
-		Write-Host "`nOnly one matching alias found: '$aliasDisplay' -> '$path'. Navigating..." -ForegroundColor Green
+		Write-Host "Only one matching alias found: '$selectedAlias' -> '$path'. Navigating..." -ForegroundColor Green
 		Set-Location $path
 		return $selectedAlias
 	}
@@ -252,9 +249,7 @@ function _goto_print_similar {
 		Write-Host "`nDid you mean one of these? Type the number to navigate, or press ENTER to cancel:" -ForegroundColor Yellow
 		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
 			$alias = $matchedAliases[$i]
-			$spacesToAdd = $maxAliasLength - $alias.Alias.Length
-			$spacesToAdd = [Math]::Max(0, $spacesToAdd)
-			$aliasDisplay = $alias.Alias + (' ' * $spacesToAdd)
+			$aliasDisplay = $alias.Alias.PadRight($maxAliasLength)
 			Write-Host "[$($i+1)]: $aliasDisplay -> $($alias.Path)" -ForegroundColor Cyan
 		}
 
@@ -265,11 +260,8 @@ function _goto_print_similar {
 		}
 		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
 			$selectedAlias = $matchedAliases[[int]$choice - 1].Alias
-			$spacesToAdd = $maxAliasLength - $selectedAlias.Length
-			$spacesToAdd = [Math]::Max(0, $spacesToAdd)
-			$aliasDisplay = $selectedAlias + (' ' * $spacesToAdd)
 			$path = $Global:DirectoryAliases[$selectedAlias]
-			Write-Host "Navigating to '$aliasDisplay' -> '$path'." -ForegroundColor Green
+			Write-Host "Navigating to '$selectedAlias' -> '$path'." -ForegroundColor Green
 			Set-Location $path
 			return $selectedAlias
 		}
@@ -324,10 +316,19 @@ function goto {
 				}
 			}
 			'u' {
+				if (-not $Alias) {
+					$Alias = _goto_print_similar -aliasInput $Alias
+				}
 				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
-					$Global:DirectoryAliases.Remove($Alias)
-					Write-Host "Alias '$Alias' unregistered." -ForegroundColor Green
-					Save-Aliases
+					$confirmation = Read-Host "Are you sure you want to unregister the alias '$Alias' which points to '$($Global:DirectoryAliases[$Alias])'? [Y/N]"
+					if ($confirmation -eq 'Y') {
+						$Global:DirectoryAliases.Remove($Alias)
+						Write-Host "Alias '$Alias' unregistered." -ForegroundColor Green
+						Save-Aliases
+					}
+					else {
+						Write-Host "Unregistration cancelled." -ForegroundColor Yellow
+					}
 				}
 				else {
 					Write-Warning "Alias '$Alias' does not exist."
