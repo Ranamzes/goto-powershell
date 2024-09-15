@@ -255,20 +255,17 @@ function _goto_print_similar {
 	}
 	elseif ($matchedAliases.Count -gt 1) {
 		Write-Host "`nDid you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
-		$totalWidth = 4 + $maxAliasLength + 4 + $maxPathLength
-		Write-Host ("-" * $totalWidth) -ForegroundColor DarkGray
 		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
 			$alias = $matchedAliases[$i]
 			$aliasDisplay = $alias.Alias.PadRight($maxAliasLength)
 			$pathDisplay = $alias.Path.PadRight($maxPathLength)
 			Write-Host ("[") -NoNewline -ForegroundColor DarkGray
-			Write-Host ($i + 1).ToString().PadLeft(2) -NoNewline -ForegroundColor Cyan
+			Write-Host ($i + 1).ToString() -NoNewline -ForegroundColor Cyan
 			Write-Host ("]: ") -NoNewline -ForegroundColor DarkGray
 			Write-Host $aliasDisplay -NoNewline -ForegroundColor Green
 			Write-Host " -> " -NoNewline -ForegroundColor DarkGray
 			Write-Host $pathDisplay -ForegroundColor Yellow
 		}
-		Write-Host ("-" * $totalWidth) -ForegroundColor DarkGray
 
 		$choice = Read-Host "`nEnter your choice (1-$($matchedAliases.Count))"
 		if ([string]::IsNullOrWhiteSpace($choice)) {
@@ -335,7 +332,7 @@ function goto {
 			}
 			'u' {
 				if (-not $Alias) {
-					$Alias = _goto_print_similar -aliasInput $Command
+					$Alias = _goto_print_similar -aliasInput $Command -action "unregister"
 				}
 				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
 					Write-Host "Are you sure you want to unregister the alias '$Alias' which points to '$($Global:DirectoryAliases[$Alias])'? [Y/N]: " -ForegroundColor Yellow -NoNewline
@@ -352,7 +349,6 @@ function goto {
 				}
 				else {
 					Write-Host "Alias '$Alias' does not exist." -ForegroundColor Red
-					_goto_print_similar -aliasInput $Alias
 				}
 			}
 			'l' {
@@ -376,29 +372,54 @@ function goto {
 				}
 			}
 			'x' {
+				if (-not $Alias) {
+					$Alias = _goto_print_similar -aliasInput $Command -action "expand"
+				}
 				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
-					Write-Host "`n$Alias -> $($Global:DirectoryAliases[$Alias])" -ForegroundColor Green
+					$path = $Global:DirectoryAliases[$Alias]
+					Write-Host "Alias: " -ForegroundColor Cyan -NoNewline
+					Write-Host "$Alias" -ForegroundColor Green
+					Write-Host "Path:  " -ForegroundColor Cyan -NoNewline
+					Write-Host "$path" -ForegroundColor Yellow
+
+					if (Test-Path $path) {
+						Write-Host "Status:" -ForegroundColor Cyan -NoNewline
+						Write-Host " Path exists" -ForegroundColor Green
+					}
+					else {
+						Write-Host "Status:" -ForegroundColor Cyan -NoNewline
+						Write-Host " Path does not exist" -ForegroundColor Red
+					}
 				}
 				else {
-					Write-Warning "`nAlias $Alias does not exist." -ForegroundColor Yellow
+					Write-Host "Alias '$Alias' does not exist." -ForegroundColor Red
 				}
 			}
 			'c' {
-				$keysToRemove = $Global:DirectoryAliases.Keys | Where-Object {
-					$path = $Global:DirectoryAliases[$_]
-					-not [string]::IsNullOrWhiteSpace($path) -and -not (Test-Path $path)
+				$invalidAliases = $Global:DirectoryAliases.GetEnumerator() | Where-Object { -not (Test-Path $_.Value) }
+
+				if ($invalidAliases.Count -eq 0) {
+					Write-Host "All aliases point to valid paths. No cleanup needed." -ForegroundColor Green
+					return
 				}
 
-				if ($keysToRemove.Count -gt 0) {
-					foreach ($key in $keysToRemove) {
-						Write-Warning "`n    Cleaning up alias '$key' because the path no longer exists." -ForegroundColor Yellow
-						$Global:DirectoryAliases.Remove($key)
+				Write-Host "The following aliases point to non-existent paths:" -ForegroundColor Yellow
+				foreach ($invalidAlias in $invalidAliases) {
+					Write-Host "  $($invalidAlias.Key) -> $($invalidAlias.Value)" -ForegroundColor Red
+				}
+
+				$confirmation = Read-Host "Do you want to remove these aliases? [Y/N]"
+				if ($confirmation -eq 'Y') {
+					foreach ($invalidAlias in $invalidAliases) {
+						$Global:DirectoryAliases.Remove($invalidAlias.Key)
+						Remove-Item -Path "Function:$($invalidAlias.Key)" -ErrorAction SilentlyContinue
+						Write-Host "Removed alias '$($invalidAlias.Key)'." -ForegroundColor Green
 					}
 					Save-Aliases
-					Write-Host "`nCleanup complete. Removed aliases with non-existent paths." -ForegroundColor Green
+					Write-Host "Cleanup complete. Removed $(($invalidAliases | Measure-Object).Count) invalid aliases." -ForegroundColor Green
 				}
 				else {
-					Write-Host "`nNo cleanup needed. All aliases point to valid paths." -ForegroundColor Yellow
+					Write-Host "Cleanup cancelled. No aliases were removed." -ForegroundColor Yellow
 				}
 			}
 			'p' {
