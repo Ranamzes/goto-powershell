@@ -230,27 +230,23 @@ function _goto_print_similar {
 	)
 
 	$normalizedInput = $aliasInput.ToLower()
+	$inputChars = $normalizedInput.ToCharArray()
+
 	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
 		$alias = $_.ToLower()
-		$inputChars = $normalizedInput.ToCharArray()
 		$aliasChars = $alias.ToCharArray()
-		$matchingCharsCount = ($inputChars | Where-Object { $aliasChars -contains $_ }).Count
-		$matchingCharsCount -ge ($normalizedInput.Length / 2)  # Более гибкое условие
+		$matchingChars = $inputChars | Where-Object { $aliasChars -contains $_ }
+		$matchingChars.Count -eq $inputChars.Count
 	}
 
 	$matchedAliases = $matchingAliases | ForEach-Object {
-		$alias = $_
-		$aliasChars = $alias.ToLower().ToCharArray()
-		$matchingCharsCount = ($normalizedInput.ToCharArray() | Where-Object { $aliasChars -contains $_ }).Count
 		[PSCustomObject]@{
-			Alias = $alias
-			Path  = $Global:DirectoryAliases[$alias]
-			Score = $matchingCharsCount
+			Alias = $_
+			Path  = $Global:DirectoryAliases[$_]
 		}
-	} | Sort-Object -Property Score -Descending
+	} | Sort-Object -Property Alias
 
 	$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
-	$maxPathLength = ($matchedAliases | Measure-Object -Property Path -Maximum).Maximum.Length
 
 	if ($matchedAliases.Count -eq 1) {
 		$selectedAlias = $matchedAliases[0].Alias
@@ -266,13 +262,12 @@ function _goto_print_similar {
 		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
 			$alias = $matchedAliases[$i]
 			$aliasDisplay = $alias.Alias.PadRight($maxAliasLength)
-			$pathDisplay = $alias.Path.PadRight($maxPathLength)
 			Write-Host ("[") -NoNewline -ForegroundColor DarkGray
 			Write-Host ($i + 1).ToString() -NoNewline -ForegroundColor Cyan
 			Write-Host ("]: ") -NoNewline -ForegroundColor DarkGray
 			Write-Host $aliasDisplay -NoNewline -ForegroundColor Green
 			Write-Host " -> " -NoNewline -ForegroundColor DarkGray
-			Write-Host $pathDisplay -ForegroundColor Yellow
+			Write-Host $alias.Path -ForegroundColor Yellow
 		}
 
 		$choice = Read-Host "`nEnter your choice (1-$($matchedAliases.Count))"
@@ -355,7 +350,7 @@ function goto {
 						Write-Host "Unregistration cancelled." -ForegroundColor Yellow
 					}
 				}
-				elseif ($Alias) {
+				else {
 					Write-Host "Alias '$Alias' does not exist." -ForegroundColor Red
 				}
 			}
@@ -389,7 +384,6 @@ function goto {
 					Write-Host "$Alias" -ForegroundColor Green
 					Write-Host "Path:  " -ForegroundColor Cyan -NoNewline
 					Write-Host "$path" -ForegroundColor Yellow
-
 					if (Test-Path $path) {
 						Write-Host "Status:" -ForegroundColor Cyan -NoNewline
 						Write-Host " Path exists" -ForegroundColor Green
@@ -399,7 +393,7 @@ function goto {
 						Write-Host " Path does not exist" -ForegroundColor Red
 					}
 				}
-				elseif ($Alias) {
+				else {
 					Write-Host "Alias '$Alias' does not exist." -ForegroundColor Red
 				}
 			}
