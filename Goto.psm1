@@ -84,7 +84,7 @@ function Test-ForUpdates {
 	}
 
 	$currentTime = Get-Date
-	if (($currentTime - $updateInfo.LastCheckTime).Days -ge 7) {
+	if (($currentTime - $updateInfo.LastCheckTime).Days -ge 30) {
 		$currentVersion = (Get-Module Goto).Version
 		try {
 			$latestVersion = (Find-Module Goto -Repository PSGallery -ErrorAction Stop).Version
@@ -231,15 +231,23 @@ function _goto_print_similar {
 
 	$normalizedInput = $aliasInput.ToLower()
 	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
-		$_ -like "*$normalizedInput*"
+		$alias = $_.ToLower()
+		$inputChars = $normalizedInput.ToCharArray()
+		$aliasChars = $alias.ToCharArray()
+		$matchingCharsCount = ($inputChars | Where-Object { $aliasChars -contains $_ }).Count
+		$matchingCharsCount -ge ($normalizedInput.Length / 2)  # Более гибкое условие
 	}
 
 	$matchedAliases = $matchingAliases | ForEach-Object {
+		$alias = $_
+		$aliasChars = $alias.ToLower().ToCharArray()
+		$matchingCharsCount = ($normalizedInput.ToCharArray() | Where-Object { $aliasChars -contains $_ }).Count
 		[PSCustomObject]@{
-			Alias = $_
-			Path  = $Global:DirectoryAliases[$_]
+			Alias = $alias
+			Path  = $Global:DirectoryAliases[$alias]
+			Score = $matchingCharsCount
 		}
-	} | Sort-Object -Property Alias
+	} | Sort-Object -Property Score -Descending
 
 	$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
 	$maxPathLength = ($matchedAliases | Measure-Object -Property Path -Maximum).Maximum.Length
@@ -334,7 +342,7 @@ function goto {
 				if (-not $Alias) {
 					$Alias = _goto_print_similar -aliasInput $Command -action "unregister"
 				}
-				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
+				if ($Alias -and $Global:DirectoryAliases.ContainsKey($Alias)) {
 					Write-Host "Are you sure you want to unregister the alias '$Alias' which points to '$($Global:DirectoryAliases[$Alias])'? [Y/N]: " -ForegroundColor Yellow -NoNewline
 					$confirmation = Read-Host
 					if ($confirmation -eq 'Y') {
@@ -347,7 +355,7 @@ function goto {
 						Write-Host "Unregistration cancelled." -ForegroundColor Yellow
 					}
 				}
-				else {
+				elseif ($Alias) {
 					Write-Host "Alias '$Alias' does not exist." -ForegroundColor Red
 				}
 			}
@@ -375,7 +383,7 @@ function goto {
 				if (-not $Alias) {
 					$Alias = _goto_print_similar -aliasInput $Command -action "expand"
 				}
-				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
+				if ($Alias -and $Global:DirectoryAliases.ContainsKey($Alias)) {
 					$path = $Global:DirectoryAliases[$Alias]
 					Write-Host "Alias: " -ForegroundColor Cyan -NoNewline
 					Write-Host "$Alias" -ForegroundColor Green
@@ -391,7 +399,7 @@ function goto {
 						Write-Host " Path does not exist" -ForegroundColor Red
 					}
 				}
-				else {
+				elseif ($Alias) {
 					Write-Host "Alias '$Alias' does not exist." -ForegroundColor Red
 				}
 			}
