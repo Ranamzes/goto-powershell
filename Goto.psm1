@@ -126,12 +126,11 @@ function Initialize-GotoEnvironment {
 Import-Module Goto -DisableNameChecking
 
 # Error handling for WinGet
-`$ErrorActionPreference = 'Continue'
+$ErrorActionPreference = 'Continue'
 try {
-    `$null = Get-Command winget -ErrorAction Stop
+    $null = Get-Command winget -ErrorAction Stop
     Import-Module Microsoft.WinGet.Client -ErrorAction SilentlyContinue
-}
-catch {
+} catch {
     Write-Verbose "WinGet not detected. Some features may be unavailable."
 }
 "@
@@ -280,28 +279,29 @@ function _goto_print_similar {
 			$aliasDisplay = $alias.Alias.PadRight($maxAliasLength)
 			$pathDisplay = $alias.Path
 
-			Write-Host $numberDisplay.PadRight(4 + $numberWidth) -NoNewline -ForegroundColor DarkGray
+			Write-Host $numberDisplay.PadRight(4 + $numberWidth) -NoNewline -ForegroundColor Cyan
 			Write-Host $aliasDisplay -NoNewline -ForegroundColor Green
 			Write-Host " -> " -NoNewline -ForegroundColor DarkGray
 			Write-Host $pathDisplay -ForegroundColor Yellow
 		}
 		Write-Host ("-" * $totalWidth) -ForegroundColor DarkGray
+
 		$choice = Read-Host "`nEnter your choice (1-$($matchedAliases.Count))"
 		if ([string]::IsNullOrWhiteSpace($choice)) {
 			Write-Host "No selection made. No action taken." -ForegroundColor Red
+			return $null
 		}
 		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
 			$selectedAlias = $matchedAliases[[int]$choice - 1].Alias
-			$path = $Global:DirectoryAliases[$selectedAlias]
-			if ($action -eq "navigate") {
-				Write-Host "Navigating to '$selectedAlias' -> '$path'." -ForegroundColor Green
-				Set-Location $path
-			}
 			return $selectedAlias
 		}
 		else {
 			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
+			return $null
 		}
+	}
+	elseif ($matchedAliases.Count -eq 1) {
+		return $matchedAliases[0]
 	}
 	else {
 		return $null
@@ -349,8 +349,11 @@ function goto {
 				}
 			}
 			'u' {
-				$aliasToUnregister = if ($Alias) { $Alias } else { $Command }
-				$selectedAlias = _goto_print_similar -aliasInput $aliasToUnregister -action "unregister"
+				if (-not $Alias) {
+					Write-Host "Usage: goto u <alias>" -ForegroundColor Yellow
+					return
+				}
+				$selectedAlias = _goto_print_similar -aliasInput $Alias -action "unregister"
 				if ($selectedAlias) {
 					Write-Host "Are you sure you want to unregister the alias '$selectedAlias' which points to '$($Global:DirectoryAliases[$selectedAlias])'? [Y/N]: " -ForegroundColor Yellow -NoNewline
 					$confirmation = Read-Host
@@ -365,7 +368,7 @@ function goto {
 					}
 				}
 				else {
-					Write-Host "No matching alias found for '$aliasToUnregister'." -ForegroundColor Red
+					Write-Host "No matching alias found for '$Alias'." -ForegroundColor Red
 				}
 			}
 			'l' {
@@ -390,12 +393,14 @@ function goto {
 			}
 			'x' {
 				if (-not $Alias) {
-					$Alias = _goto_print_similar -aliasInput $Command -action "expand"
+					Write-Host "Usage: goto x <alias>" -ForegroundColor Yellow
+					return
 				}
-				if ($Alias -and $Global:DirectoryAliases.ContainsKey($Alias)) {
-					$path = $Global:DirectoryAliases[$Alias]
+				$selectedAlias = _goto_print_similar -aliasInput $Alias -action "expand"
+				if ($selectedAlias) {
+					$path = $Global:DirectoryAliases[$selectedAlias]
 					Write-Host "Alias: " -ForegroundColor Cyan -NoNewline
-					Write-Host "$Alias" -ForegroundColor Green
+					Write-Host "$selectedAlias" -ForegroundColor Green
 					Write-Host "Path:  " -ForegroundColor Cyan -NoNewline
 					Write-Host "$path" -ForegroundColor Yellow
 					if (Test-Path $path) {
@@ -408,7 +413,7 @@ function goto {
 					}
 				}
 				else {
-					Write-Host "Alias '$Alias' does not exist." -ForegroundColor Red
+					Write-Host "No matching alias found for '$Alias'." -ForegroundColor Red
 				}
 			}
 			'c' {
