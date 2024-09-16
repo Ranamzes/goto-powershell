@@ -113,40 +113,33 @@ function Initialize-GotoEnvironment {
 	if (-not (Test-Path -Path $script:GotoDataPath)) {
 		New-Item -Path $script:GotoDataPath -ItemType Directory -Force | Out-Null
 	}
-
 	Import-Aliases
-
 	if (-not (Test-Path -Path $script:AliasFilePath)) {
 		Save-Aliases
 	}
-
 	$profileContent = @"
 
 # Import Goto module
 Import-Module Goto -DisableNameChecking
 
 # Error handling for WinGet
-$ErrorActionPreference = 'Continue'
+`$ErrorActionPreference = 'Continue'
 try {
-    $null = Get-Command winget -ErrorAction Stop
+    `$null = Get-Command winget -ErrorAction Stop
     Import-Module Microsoft.WinGet.Client -ErrorAction SilentlyContinue
 } catch {
     Write-Verbose "WinGet not detected. Some features may be unavailable."
 }
 "@
-
 	if (-not (Test-Path -Path $PROFILE)) {
 		New-Item -Path $PROFILE -ItemType File -Force | Out-Null
 	}
-
 	$currentProfileContent = Get-Content -Path $PROFILE -Raw -ErrorAction SilentlyContinue
-
 	if ($currentProfileContent -notmatch [regex]::Escape($profileContent)) {
-		Add-Content -Path $PROFILE -Value "`n$profileContent"
+		Add-Content -Path $PROFILE -Value $profileContent
 		Write-Host "Goto module import and WinGet error handling have been added to your PowerShell profile." -ForegroundColor Green
 		Write-Host "Please restart your PowerShell session or run '. `$PROFILE' to apply changes." -ForegroundColor Yellow
 	}
-
 	Test-ForUpdates
 }
 
@@ -258,16 +251,17 @@ function _goto_print_similar {
 		$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
 		$maxPathLength = ($matchedAliases | Measure-Object -Property Path -Maximum).Maximum.Length
 		$numberWidth = $matchedAliases.Count.ToString().Length
-		$totalWidth = 7 + $numberWidth + $maxAliasLength + 4 + $maxPathLength
+		$totalWidth = 5 + $numberWidth + $maxAliasLength + 4 + $maxPathLength
 
 		Write-Host ("-" * $totalWidth) -ForegroundColor DarkGray
 		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
 			$alias = $matchedAliases[$i]
-			$numberDisplay = "[$($i + 1)]:"
 			$aliasDisplay = $alias.Alias.PadRight($maxAliasLength)
 			$pathDisplay = $alias.Path
 
-			Write-Host $numberDisplay.PadRight(7 + $numberWidth) -NoNewline -ForegroundColor Cyan
+			Write-Host "[" -NoNewline -ForegroundColor DarkGray
+			Write-Host ($i + 1).ToString().PadLeft($numberWidth) -NoNewline -ForegroundColor Cyan
+			Write-Host "]: " -NoNewline -ForegroundColor DarkGray
 			Write-Host $aliasDisplay -NoNewline -ForegroundColor Green
 			Write-Host " -> " -NoNewline -ForegroundColor DarkGray
 			Write-Host $pathDisplay -ForegroundColor Yellow
