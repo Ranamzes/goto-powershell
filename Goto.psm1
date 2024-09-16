@@ -450,14 +450,37 @@ function goto {
 				}
 			}
 			default {
-				$selectedAlias = _goto_print_similar -aliasInput $Command -action "navigate"
-				if ($selectedAlias) {
+				$exactMatches = $Global:DirectoryAliases.Keys | Where-Object { $_ -eq $Command }
+				$partialMatches = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "*$Command*" }
+				$advancedMatches = $Global:DirectoryAliases.Keys | Where-Object {
+					$alias = $_
+					$Command.ToCharArray() | ForEach-Object {
+						if ($alias -notmatch [regex]::Escape($_)) {
+							return $false
+						}
+						$alias = $alias.Substring($alias.IndexOf($_) + 1)
+					}
+					return $true
+				}
+
+				$allMatches = $exactMatches + $partialMatches + $advancedMatches | Select-Object -Unique
+
+				if ($allMatches.Count -eq 1) {
+					$selectedAlias = $allMatches[0]
 					$path = $Global:DirectoryAliases[$selectedAlias]
 					Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
 					Set-Location $path
 				}
+				elseif ($allMatches.Count -gt 1) {
+					$selectedAlias = _goto_print_similar -aliasInput $Command -action "navigate"
+					if ($selectedAlias) {
+						$path = $Global:DirectoryAliases[$selectedAlias]
+						Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
+						Set-Location $path
+					}
+				}
 				else {
-					Write-Host "Usage: goto [ <alias> | r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | update ]" -ForegroundColor Yellow
+					Write-Host "No matching alias found. Usage: goto [ <alias> | r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | update ]" -ForegroundColor Yellow
 				}
 			}
 		}
