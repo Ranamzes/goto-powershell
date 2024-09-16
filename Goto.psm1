@@ -450,20 +450,11 @@ function goto {
 				}
 			}
 			default {
-				$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "$Command*" -or $Command -like "*$_*" }
-				if ($matchingAliases.Count -eq 1) {
-					$selectedAlias = $matchingAliases[0]
+				$selectedAlias = _goto_print_similar -aliasInput $Command -action "navigate"
+				if ($selectedAlias) {
 					$path = $Global:DirectoryAliases[$selectedAlias]
 					Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
 					Set-Location $path
-				}
-				elseif ($matchingAliases.Count -gt 1) {
-					$selectedAlias = _goto_print_similar -aliasInput $Command -action "navigate"
-					if ($selectedAlias) {
-						$path = $Global:DirectoryAliases[$selectedAlias]
-						Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
-						Set-Location $path
-					}
 				}
 				else {
 					Write-Host "Usage: goto [ <alias> | r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | update ]" -ForegroundColor Yellow
