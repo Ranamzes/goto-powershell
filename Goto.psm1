@@ -241,10 +241,12 @@ function _goto_print_similar {
 		for ($i = 0; $i -lt $matchingAliases.Count; $i++) {
 			$alias = $matchingAliases[$i]
 			$path = $Global:DirectoryAliases[$alias]
-			$paddedNumber = "[" + ($i + 1).ToString().PadLeft($numberWidth) + "]:"
+			$paddedNumber = ($i + 1).ToString().PadLeft($numberWidth)
 			$paddedAlias = $alias.PadRight($maxAliasLength)
 
-			Write-Host $paddedNumber -NoNewline -ForegroundColor DarkGray
+			Write-Host "[" -NoNewline -ForegroundColor DarkGray
+			Write-Host $paddedNumber -NoNewline -ForegroundColor Cyan
+			Write-Host "]:" -NoNewline -ForegroundColor DarkGray
 			Write-Host " $paddedAlias" -NoNewline -ForegroundColor Green
 			Write-Host " -> " -NoNewline -ForegroundColor DarkGray
 			Write-Host $path -ForegroundColor Yellow
@@ -450,37 +452,14 @@ function goto {
 				}
 			}
 			default {
-				$exactMatches = $Global:DirectoryAliases.Keys | Where-Object { $_ -eq $Command }
-				$partialMatches = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "*$Command*" }
-				$advancedMatches = $Global:DirectoryAliases.Keys | Where-Object {
-					$alias = $_
-					$Command.ToCharArray() | ForEach-Object {
-						if ($alias -notmatch [regex]::Escape($_)) {
-							return $false
-						}
-						$alias = $alias.Substring($alias.IndexOf($_) + 1)
-					}
-					return $true
-				}
-
-				$allMatches = $exactMatches + $partialMatches + $advancedMatches | Select-Object -Unique
-
-				if ($allMatches.Count -eq 1) {
-					$selectedAlias = $allMatches[0]
+				$selectedAlias = _goto_print_similar -aliasInput $Command
+				if ($selectedAlias) {
 					$path = $Global:DirectoryAliases[$selectedAlias]
-					Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
+					Write-Host "Navigating to alias '$selectedAlias' at path '$path'."
 					Set-Location $path
 				}
-				elseif ($allMatches.Count -gt 1) {
-					$selectedAlias = _goto_print_similar -aliasInput $Command -action "navigate"
-					if ($selectedAlias) {
-						$path = $Global:DirectoryAliases[$selectedAlias]
-						Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
-						Set-Location $path
-					}
-				}
 				else {
-					Write-Host "No matching alias found. Usage: goto [ <alias> | r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | update ]" -ForegroundColor Yellow
+					Write-Host "Usage: goto [ <alias> | r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | update | help ]" -ForegroundColor Yellow
 				}
 			}
 		}
