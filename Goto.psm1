@@ -228,50 +228,44 @@ function _goto_print_similar {
 
 	$normalizedInput = $aliasInput.ToLower()
 	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
-		$_ -like "*$normalizedInput*"
-	}
+		$_ -like "*$normalizedInput*" -or $normalizedInput -like "*$_*"
+	} | Sort-Object
 
-	$matchedAliases = $matchingAliases | ForEach-Object {
-		[PSCustomObject]@{
-			Alias = $_
-			Path  = $Global:DirectoryAliases[$_]
-		}
-	} | Sort-Object -Property Alias
-
-	if ($matchedAliases.Count -gt 1) {
+	if ($matchingAliases.Count -gt 1) {
 		Write-Host "Did you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
 		Write-Host
 
-		$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
-		$numberWidth = $matchedAliases.Count.ToString().Length
+		$maxAliasLength = ($matchingAliases | Measure-Object -Property Length -Maximum).Maximum
+		$numberWidth = $matchingAliases.Count.ToString().Length
 
-		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
-			$alias = $matchedAliases[$i]
-			$aliasDisplay = $alias.Alias.PadRight($maxAliasLength)
-			$pathDisplay = $alias.Path
+		for ($i = 0; $i -lt $matchingAliases.Count; $i++) {
+			$alias = $matchingAliases[$i]
+			$path = $Global:DirectoryAliases[$alias]
+			$paddedNumber = "[" + ($i + 1).ToString().PadLeft($numberWidth) + "]:"
+			$paddedAlias = $alias.PadRight($maxAliasLength)
 
-			Write-Host ("[" + ($i + 1).ToString().PadLeft($numberWidth) + "]:") -NoNewline -ForegroundColor DarkGray
-			Write-Host " $aliasDisplay" -NoNewline -ForegroundColor Green
+			Write-Host $paddedNumber -NoNewline -ForegroundColor DarkGray
+			Write-Host " $paddedAlias" -NoNewline -ForegroundColor Green
 			Write-Host " -> " -NoNewline -ForegroundColor DarkGray
-			Write-Host $pathDisplay -ForegroundColor Yellow
+			Write-Host $path -ForegroundColor Yellow
 		}
 
 		Write-Host
-		$choice = Read-Host "Enter your choice (1-$($matchedAliases.Count))"
+		$choice = Read-Host "Enter your choice (1-$($matchingAliases.Count))"
 		if ([string]::IsNullOrWhiteSpace($choice)) {
 			Write-Host "No selection made. No action taken." -ForegroundColor Red
 			return $null
 		}
-		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
-			return $matchedAliases[[int]$choice - 1].Alias
+		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchingAliases.Count) {
+			return $matchingAliases[[int]$choice - 1]
 		}
 		else {
 			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
 			return $null
 		}
 	}
-	elseif ($matchedAliases.Count -eq 1) {
-		return $matchedAliases[0].Alias
+	elseif ($matchingAliases.Count -eq 1) {
+		return $matchingAliases[0]
 	}
 	else {
 		return $null
@@ -456,7 +450,7 @@ function goto {
 				}
 			}
 			default {
-				$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "$Command*" }
+				$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "$Command*" -or $Command -like "*$_*" }
 				if ($matchingAliases.Count -eq 1) {
 					$selectedAlias = $matchingAliases[0]
 					$path = $Global:DirectoryAliases[$selectedAlias]
