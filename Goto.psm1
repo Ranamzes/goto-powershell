@@ -128,11 +128,11 @@ Import-Module Goto -DisableNameChecking
 # Error handling for WinGet
 `$ErrorActionPreference = 'Continue'
 try {
-    `$null = Get-Command winget -ErrorAction Stop
-    Import-Module Microsoft.WinGet.Client -ErrorAction SilentlyContinue
+		`$null = Get-Command winget -ErrorAction Stop
+		Import-Module Microsoft.WinGet.Client -ErrorAction SilentlyContinue
 }
 catch {
-    Write-Verbose "WinGet not detected. Some features may be unavailable."
+		Write-Verbose "WinGet not detected. Some features may be unavailable."
 }
 "@
 
@@ -235,8 +235,15 @@ function _goto_print_similar {
 	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
 		$alias = $_.ToLower()
 		$aliasChars = $alias.ToCharArray()
-		$matchingChars = $inputChars | Where-Object { $aliasChars -contains $_ }
-		$matchingChars.Count -eq $inputChars.Count
+		$inputIndex = 0
+		$aliasIndex = 0
+		while ($inputIndex -lt $inputChars.Count -and $aliasIndex -lt $aliasChars.Count) {
+			if ($inputChars[$inputIndex] -eq $aliasChars[$aliasIndex]) {
+				$inputIndex++
+			}
+			$aliasIndex++
+		}
+		$inputIndex -eq $inputChars.Count
 	}
 
 	$matchedAliases = $matchingAliases | ForEach-Object {
@@ -247,6 +254,7 @@ function _goto_print_similar {
 	} | Sort-Object -Property Alias
 
 	$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
+	$maxPathLength = ($matchedAliases | Measure-Object -Property Path -Maximum).Maximum.Length
 
 	if ($matchedAliases.Count -eq 1) {
 		$selectedAlias = $matchedAliases[0].Alias
@@ -259,16 +267,19 @@ function _goto_print_similar {
 	}
 	elseif ($matchedAliases.Count -gt 1) {
 		Write-Host "`nDid you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
+		Write-Host ("-" * (8 + $maxAliasLength + 4 + $maxPathLength)) -ForegroundColor DarkGray
 		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
 			$alias = $matchedAliases[$i]
 			$aliasDisplay = $alias.Alias.PadRight($maxAliasLength)
+			$pathDisplay = $alias.Path.PadRight($maxPathLength)
 			Write-Host ("[") -NoNewline -ForegroundColor DarkGray
-			Write-Host ($i + 1).ToString() -NoNewline -ForegroundColor Cyan
+			Write-Host ($i + 1).ToString().PadLeft(2) -NoNewline -ForegroundColor Cyan
 			Write-Host ("]: ") -NoNewline -ForegroundColor DarkGray
 			Write-Host $aliasDisplay -NoNewline -ForegroundColor Green
 			Write-Host " -> " -NoNewline -ForegroundColor DarkGray
-			Write-Host $alias.Path -ForegroundColor Yellow
+			Write-Host $pathDisplay -ForegroundColor Yellow
 		}
+		Write-Host ("-" * (8 + $maxAliasLength + 4 + $maxPathLength)) -ForegroundColor DarkGray
 
 		$choice = Read-Host "`nEnter your choice (1-$($matchedAliases.Count))"
 		if ([string]::IsNullOrWhiteSpace($choice)) {
@@ -288,9 +299,8 @@ function _goto_print_similar {
 		}
 	}
 	else {
-		Write-Host "No similar aliases found for '$aliasInput'." -ForegroundColor Red
+		return $null
 	}
-	return $null
 }
 
 function goto {
@@ -337,6 +347,9 @@ function goto {
 				if (-not $Alias) {
 					$Alias = _goto_print_similar -aliasInput $Command -action "unregister"
 				}
+				if (-not $Alias) {
+					$Alias = _goto_print_similar -aliasInput $Alias -action "unregister"
+				}
 				if ($Alias -and $Global:DirectoryAliases.ContainsKey($Alias)) {
 					Write-Host "Are you sure you want to unregister the alias '$Alias' which points to '$($Global:DirectoryAliases[$Alias])'? [Y/N]: " -ForegroundColor Yellow -NoNewline
 					$confirmation = Read-Host
@@ -351,7 +364,7 @@ function goto {
 					}
 				}
 				else {
-					Write-Host "Alias '$Alias' does not exist." -ForegroundColor Red
+					Write-Host "No matching alias found for '$Command'." -ForegroundColor Red
 				}
 			}
 			'l' {
