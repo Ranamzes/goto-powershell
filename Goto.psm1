@@ -26,9 +26,9 @@ function Restore-AliasesFromBackup {
 function Update-GotoModule {
 	try {
 		Backup-Aliases
-
 		$currentAliases = $Global:DirectoryAliases.Clone()
 		$currentModule = Get-InstalledModule -Name Goto -ErrorAction Stop
+		$newVersion = $null
 
 		try {
 			$onlineModule = Find-Module -Name Goto -ErrorAction Stop
@@ -36,8 +36,13 @@ function Update-GotoModule {
 		}
 		catch {
 			Write-Host "Unable to check for updates using Find-Module. Using alternative method." -ForegroundColor Yellow
-			$response = Invoke-RestMethod -Uri "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id eq 'Goto' and IsLatestVersion" -ErrorAction Stop
-			$newVersion = [version]($response.properties.Version)
+			try {
+				$response = Invoke-RestMethod -Uri "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id eq 'Goto' and IsLatestVersion" -ErrorAction Stop
+				$newVersion = [version]($response.properties.Version)
+			}
+			catch {
+				throw "Failed to check for updates using both methods. Please check your internet connection."
+			}
 		}
 
 		if ($newVersion -gt $currentModule.Version) {
@@ -51,11 +56,9 @@ function Update-GotoModule {
 
 			$Global:DirectoryAliases = $currentAliases
 			Save-Aliases
-
 			Write-Host "Aliases have been restored." -ForegroundColor Green
 
 			Initialize-GotoEnvironment
-
 			Write-Host "Please restart your PowerShell session to use the new version." -ForegroundColor Yellow
 		}
 		else {
@@ -66,7 +69,6 @@ function Update-GotoModule {
 		Write-Host "An error occurred while updating Goto: $_" -ForegroundColor Red
 		Write-Host "Error details: $($_.Exception.Message)" -ForegroundColor Red
 		Write-Host "Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Red
-
 		Restore-AliasesFromBackup
 	}
 }
@@ -92,6 +94,9 @@ function Test-ForUpdates {
 				$updateInfo.LatestVersion = $latestVersion
 				$updateInfo.NotificationCount = 0
 				Write-Host "New version $latestVersion available. Run 'goto update' to update." -ForegroundColor Yellow
+			}
+			else {
+				$updateInfo.LatestVersion = $null
 			}
 		}
 		catch {
@@ -222,20 +227,8 @@ function _goto_print_similar {
 	)
 
 	$normalizedInput = $aliasInput.ToLower()
-	$inputChars = $normalizedInput.ToCharArray()
-
 	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
-		$alias = $_.ToLower()
-		$inputIndex = 0
-		foreach ($char in $alias.ToCharArray()) {
-			if ($char -eq $inputChars[$inputIndex]) {
-				$inputIndex++
-				if ($inputIndex -eq $inputChars.Count) {
-					return $true
-				}
-			}
-		}
-		return $false
+		$_ -like "*$normalizedInput*"
 	}
 
 	$matchedAliases = $matchingAliases | ForEach-Object {
@@ -467,9 +460,14 @@ function goto {
 				}
 			}
 			default {
-				$result = _goto_print_similar -aliasInput $Command -action "navigate"
-				if (-not $result) {
-					Write-Host "Usage: goto [ r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | <alias>]" -ForegroundColor Yellow
+				$selectedAlias = _goto_print_similar -aliasInput $Command -action "navigate"
+				if ($selectedAlias) {
+					$path = $Global:DirectoryAliases[$selectedAlias]
+					Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
+					Set-Location $path
+				}
+				else {
+					Write-Host "Usage: goto [ r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | update | <alias>]" -ForegroundColor Yellow
 				}
 			}
 		}
