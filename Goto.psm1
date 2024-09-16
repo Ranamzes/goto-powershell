@@ -228,8 +228,14 @@ function _goto_print_similar {
 
 	$normalizedInput = $aliasInput.ToLower()
 	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
-		$_ -like "*$normalizedInput*"
+		$_.ToLower().StartsWith($normalizedInput)
 	} | Sort-Object
+
+	if ($matchingAliases.Count -eq 0) {
+		$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
+			$_.ToLower().Contains($normalizedInput)
+		} | Sort-Object
+	}
 
 	if ($matchingAliases.Count -gt 1) {
 		Write-Host "Did you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
@@ -455,12 +461,17 @@ function goto {
 				$selectedAlias = _goto_print_similar -aliasInput $Command
 				if ($selectedAlias) {
 					$path = $Global:DirectoryAliases[$selectedAlias]
-					Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
-					Set-Location $path
+					if (Test-Path $path) {
+						Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
+						Set-Location $path
+					}
+					else {
+						Write-Host "The path '$path' for alias '$selectedAlias' does not exist." -ForegroundColor Red
+					}
 				}
 				else {
 					Write-Host "No matching alias found for '$Command'." -ForegroundColor Red
-					Write-Host "Usage: goto [ <alias> | r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | update ]" -ForegroundColor Yellow
+					Write-Host "Usage: goto [ <alias> | r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | update | help ]" -ForegroundColor Yellow
 				}
 			}
 		}
