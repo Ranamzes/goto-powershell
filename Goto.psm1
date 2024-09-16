@@ -233,16 +233,16 @@ function _goto_print_similar {
 
 	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
 		$alias = $_.ToLower()
-		$aliasChars = $alias.ToCharArray()
 		$inputIndex = 0
-		$aliasIndex = 0
-		while ($inputIndex -lt $inputChars.Count -and $aliasIndex -lt $aliasChars.Count) {
-			if ($inputChars[$inputIndex] -eq $aliasChars[$aliasIndex]) {
+		foreach ($char in $alias.ToCharArray()) {
+			if ($char -eq $inputChars[$inputIndex]) {
 				$inputIndex++
+				if ($inputIndex -eq $inputChars.Count) {
+					return $true
+				}
 			}
-			$aliasIndex++
 		}
-		$inputIndex -eq $inputChars.Count
+		return $false
 	}
 
 	$matchedAliases = $matchingAliases | ForEach-Object {
@@ -252,25 +252,13 @@ function _goto_print_similar {
 		}
 	} | Sort-Object -Property Alias
 
-	$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
-	$maxPathLength = ($matchedAliases | Measure-Object -Property Path -Maximum).Maximum.Length
-
-	if ($matchedAliases.Count -eq 1) {
-		$selectedAlias = $matchedAliases[0].Alias
-		$path = $Global:DirectoryAliases[$selectedAlias]
-		if ($action -eq "navigate") {
-			Write-Host "Only one matching alias found: '$selectedAlias' -> '$path'. Navigating..." -ForegroundColor Green
-			Set-Location $path
-		}
-		return $selectedAlias
-	}
 	if ($matchedAliases.Count -gt 1) {
 		Write-Host "`nDid you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
 
 		$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
 		$maxPathLength = ($matchedAliases | Measure-Object -Property Path -Maximum).Maximum.Length
 		$numberWidth = $matchedAliases.Count.ToString().Length
-		$totalWidth = 4 + $numberWidth + $maxAliasLength + 4 + $maxPathLength
+		$totalWidth = 7 + $numberWidth + $maxAliasLength + 4 + $maxPathLength
 
 		Write-Host ("-" * $totalWidth) -ForegroundColor DarkGray
 		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
@@ -279,7 +267,7 @@ function _goto_print_similar {
 			$aliasDisplay = $alias.Alias.PadRight($maxAliasLength)
 			$pathDisplay = $alias.Path
 
-			Write-Host $numberDisplay.PadRight(4 + $numberWidth) -NoNewline -ForegroundColor Cyan
+			Write-Host $numberDisplay.PadRight(7 + $numberWidth) -NoNewline -ForegroundColor Cyan
 			Write-Host $aliasDisplay -NoNewline -ForegroundColor Green
 			Write-Host " -> " -NoNewline -ForegroundColor DarkGray
 			Write-Host $pathDisplay -ForegroundColor Yellow
@@ -292,8 +280,7 @@ function _goto_print_similar {
 			return $null
 		}
 		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
-			$selectedAlias = $matchedAliases[[int]$choice - 1].Alias
-			return $selectedAlias
+			return $matchedAliases[[int]$choice - 1].Alias
 		}
 		else {
 			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
@@ -301,7 +288,7 @@ function _goto_print_similar {
 		}
 	}
 	elseif ($matchedAliases.Count -eq 1) {
-		return $matchedAliases[0]
+		return $matchedAliases[0].Alias
 	}
 	else {
 		return $null
