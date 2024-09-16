@@ -242,11 +242,8 @@ function _goto_print_similar {
 		Write-Host "`nDid you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
 
 		$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
-		$maxPathLength = ($matchedAliases | Measure-Object -Property Path -Maximum).Maximum.Length
 		$numberWidth = $matchedAliases.Count.ToString().Length
-		$totalWidth = 5 + $numberWidth + $maxAliasLength + 4 + $maxPathLength
 
-		Write-Host ("-" * $totalWidth) -ForegroundColor DarkGray
 		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
 			$alias = $matchedAliases[$i]
 			$aliasDisplay = $alias.Alias.PadRight($maxAliasLength)
@@ -259,7 +256,6 @@ function _goto_print_similar {
 			Write-Host " -> " -NoNewline -ForegroundColor DarkGray
 			Write-Host $pathDisplay -ForegroundColor Yellow
 		}
-		Write-Host ("-" * $totalWidth) -ForegroundColor DarkGray
 
 		$choice = Read-Host "`nEnter your choice (1-$($matchedAliases.Count))"
 		if ([string]::IsNullOrWhiteSpace($choice)) {
