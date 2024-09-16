@@ -462,8 +462,13 @@ function goto {
 					Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
 					Set-Location $path
 				}
+				elseif ($Global:DirectoryAliases.ContainsKey($Command)) {
+					$path = $Global:DirectoryAliases[$Command]
+					Write-Host "Navigating to alias '$Command' at path '$path'." -ForegroundColor Green
+					Set-Location $path
+				}
 				else {
-					Write-Host "Usage: goto [ r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | update | <alias>]" -ForegroundColor Yellow
+					Write-Host "Usage: goto [ <alias> | r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | update ]" -ForegroundColor Yellow
 				}
 			}
 		}
