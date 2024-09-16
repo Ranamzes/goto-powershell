@@ -239,7 +239,8 @@ function _goto_print_similar {
 	} | Sort-Object -Property Alias
 
 	if ($matchedAliases.Count -gt 1) {
-		Write-Host "`nDid you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
+		Write-Host "Did you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
+		Write-Host
 
 		$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
 		$numberWidth = $matchedAliases.Count.ToString().Length
@@ -249,15 +250,14 @@ function _goto_print_similar {
 			$aliasDisplay = $alias.Alias.PadRight($maxAliasLength)
 			$pathDisplay = $alias.Path
 
-			Write-Host "[" -NoNewline -ForegroundColor DarkGray
-			Write-Host ($i + 1).ToString().PadLeft($numberWidth) -NoNewline -ForegroundColor Cyan
-			Write-Host "]: " -NoNewline -ForegroundColor DarkGray
-			Write-Host $aliasDisplay -NoNewline -ForegroundColor Green
+			Write-Host ("[" + ($i + 1).ToString().PadLeft($numberWidth) + "]:") -NoNewline -ForegroundColor DarkGray
+			Write-Host " $aliasDisplay" -NoNewline -ForegroundColor Green
 			Write-Host " -> " -NoNewline -ForegroundColor DarkGray
 			Write-Host $pathDisplay -ForegroundColor Yellow
 		}
 
-		$choice = Read-Host "`nEnter your choice (1-$($matchedAliases.Count))"
+		Write-Host
+		$choice = Read-Host "Enter your choice (1-$($matchedAliases.Count))"
 		if ([string]::IsNullOrWhiteSpace($choice)) {
 			Write-Host "No selection made. No action taken." -ForegroundColor Red
 			return $null
@@ -456,16 +456,20 @@ function goto {
 				}
 			}
 			default {
-				$selectedAlias = _goto_print_similar -aliasInput $Command -action "navigate"
-				if ($selectedAlias) {
+				$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object { $_ -like "$Command*" }
+				if ($matchingAliases.Count -eq 1) {
+					$selectedAlias = $matchingAliases[0]
 					$path = $Global:DirectoryAliases[$selectedAlias]
 					Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
 					Set-Location $path
 				}
-				elseif ($Global:DirectoryAliases.ContainsKey($Command)) {
-					$path = $Global:DirectoryAliases[$Command]
-					Write-Host "Navigating to alias '$Command' at path '$path'." -ForegroundColor Green
-					Set-Location $path
+				elseif ($matchingAliases.Count -gt 1) {
+					$selectedAlias = _goto_print_similar -aliasInput $Command -action "navigate"
+					if ($selectedAlias) {
+						$path = $Global:DirectoryAliases[$selectedAlias]
+						Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
+						Set-Location $path
+					}
 				}
 				else {
 					Write-Host "Usage: goto [ <alias> | r <alias> <path> | u <alias> | l | x <alias> | c | p <alias> | o | update ]" -ForegroundColor Yellow
