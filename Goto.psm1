@@ -283,12 +283,13 @@ function _goto_print_similar {
 }
 
 function goto {
-	[CmdletBinding(SupportsShouldProcess = $false, PositionalBinding = $false, DefaultParameterSetName = 'Navigate')]
+	[CmdletBinding(DefaultParameterSetName = 'Navigate')]
 	param(
 		[Parameter(ParameterSetName = 'Navigate', Position = 0)]
 		[Parameter(ParameterSetName = 'Unregister', Position = 1)]
 		[Parameter(ParameterSetName = 'Expand', Position = 1)]
 		[Parameter(ParameterSetName = 'Push', Position = 1)]
+		[Parameter(ParameterSetName = 'Register', Position = 1)]
 		[string]$Alias,
 
 		[Parameter(ParameterSetName = 'Register', Mandatory = $true)]
@@ -330,19 +331,19 @@ function goto {
 		[Alias('v')]
 		[switch]$Version,
 
-		[Parameter(ParameterSetName = 'Register', Position = 1)]
+		[Parameter(ParameterSetName = 'Register', Position = 2)]
 		[Parameter(ParameterSetName = 'Navigate', Position = 1)]
 		[string]$Path
 	)
 
 	switch ($PSCmdlet.ParameterSetName) {
 		'Register' {
-			if (-not [string]::IsNullOrWhiteSpace($RegisterAlias) -and -not [string]::IsNullOrWhiteSpace($RegisterPath)) {
-				if (Test-Path $RegisterPath) {
-					$resolvedPath = Resolve-Path -Path $RegisterPath | Select-Object -ExpandProperty Path
-					$Global:DirectoryAliases[$RegisterAlias] = $resolvedPath
-					New-Item -Path Function:\ -Name "Global:$RegisterAlias" -Value { Set-Location $resolvedPath } | Out-Null
-					Write-Host "Alias '$RegisterAlias' registered for path '$resolvedPath'." -ForegroundColor Green
+			if (-not [string]::IsNullOrWhiteSpace($Alias) -and -not [string]::IsNullOrWhiteSpace($Path)) {
+				if (Test-Path $Path) {
+					$resolvedPath = Resolve-Path -Path $Path | Select-Object -ExpandProperty Path
+					$Global:DirectoryAliases[$Alias] = $resolvedPath
+					New-Item -Path Function:\ -Name "Global:$Alias" -Value { Set-Location $resolvedPath } | Out-Null
+					Write-Host "Alias '$Alias' registered for path '$resolvedPath'." -ForegroundColor Green
 					Save-Aliases
 				}
 				else {
@@ -462,92 +463,59 @@ _____/\\\\\\\\\\\\___________________________________________
         __\////////////_______\/////_________\/////_______\/////_____
 "@
 				$lines = $gotoAsciiArt -split "`n"
-				$colors = @("Red", "Green", "Yellow", "Cyan")
+				$colors = @("Cyan", "Yellow", "Green", "Magenta")
 				$colorIndex = 0
 
-				for ($i = 0; $i -lt $lines.Length; $i++) {
-					$line = $lines[$i]
-					if ($i % 2 -eq 0) {
-						Write-Host $line -ForegroundColor DarkGray
-					}
-					else {
+				foreach ($line in $lines) {
+					if ($line -match '/\\\\') {
 						$parts = $line -split '(?<=\\\\)'
-						for ($j = 0; $j -lt $parts.Length; $j++) {
-							if ($j -eq 0) {
-								Write-Host $parts[$j] -ForegroundColor DarkGray -NoNewline
+						foreach ($part in $parts) {
+							if ($part -match '/\\\\') {
+								Write-Host $part -ForegroundColor $colors[$colorIndex] -NoNewline
+								$colorIndex = ($colorIndex + 1) % $colors.Length
 							}
 							else {
-								Write-Host $parts[$j] -ForegroundColor $colors[$colorIndex] -NoNewline
-								$colorIndex = ($colorIndex + 1) % $colors.Length
+								Write-Host $part -ForegroundColor DarkGray -NoNewline
 							}
 						}
 						Write-Host ""
 					}
-				}
-
-				function Write-ColoredCommand {
-					param (
-						[string]$Command
-					)
-					$parts = $Command -split ' '
-					for ($i = 0; $i -lt $parts.Length; $i++) {
-						$color = switch ($i) {
-							0 { "Cyan" }
-							1 { "Green" }
-							2 { "Yellow" }
-							3 { "Magenta" }
-							default { "White" }
-						}
-						Write-Host $parts[$i] -ForegroundColor $color -NoNewline
-						if ($i -lt $parts.Length - 1) {
-							Write-Host " " -NoNewline
-						}
+					else {
+						Write-Host $line -ForegroundColor DarkGray
 					}
-					Write-Host ""
 				}
 
-				$helpText = @"
+				Write-Host "`nUsage: " -ForegroundColor Cyan -NoNewline
+				Write-Host "goto [<option>] <alias> [<directory>]`n" -ForegroundColor White
 
-Usage: goto [<option>] <alias> [<directory>]
+				Write-Host "Default usage:" -ForegroundColor Cyan
+				Write-Host "  goto <alias> " -ForegroundColor Yellow -NoNewline
+				Write-Host "- changes to the directory registered for the given alias`n" -ForegroundColor White
 
-Default usage:
-  $(Write-ColoredCommand "goto <alias>") - changes to the directory registered for the given alias
+				Write-Host "OPTIONS:" -ForegroundColor Cyan
+				$options = @(
+					@{Option = "-r, -Register"; Desc = "registers an alias"; Usage = "goto -r|-Register <alias> <directory>" },
+					@{Option = "-u, -Unregister"; Desc = "unregisters an alias"; Usage = "goto -u|-Unregister <alias>" },
+					@{Option = "-p, -Push"; Desc = "pushes the current directory onto the stack, then performs goto"; Usage = "goto -p|-Push <alias>" },
+					@{Option = "-o, -Pop"; Desc = "pops the top directory from the stack, then changes to that directory"; Usage = "goto -o|-Pop" },
+					@{Option = "-l, -List"; Desc = "lists aliases"; Usage = "goto -l|-List" },
+					@{Option = "-x, -Expand"; Desc = "expands an alias"; Usage = "goto -x|-Expand <alias>" },
+					@{Option = "-c, -Cleanup"; Desc = "cleans up non existent directory aliases"; Usage = "goto -c|-Cleanup" },
+					@{Option = "-h, -Help"; Desc = "prints this help"; Usage = "goto -h|-Help" },
+					@{Option = "-v, -Version"; Desc = "displays the version of the goto module"; Usage = "goto -v|-Version" },
+					@{Option = "-Update"; Desc = "updates the goto module"; Usage = "goto -Update" }
+				)
 
-OPTIONS:
-  $(Write-Host "-r, -Register" -ForegroundColor Green -NoNewline): registers an alias
-    $(Write-ColoredCommand "goto -r|-Register <alias> <directory>")
-
-  $(Write-Host "-u, -Unregister" -ForegroundColor Green -NoNewline): unregisters an alias
-    $(Write-ColoredCommand "goto -u|-Unregister <alias>")
-
-  $(Write-Host "-p, -Push" -ForegroundColor Green -NoNewline): pushes the current directory onto the stack, then performs goto
-    $(Write-ColoredCommand "goto -p|-Push <alias>")
-
-  $(Write-Host "-o, -Pop" -ForegroundColor Green -NoNewline): pops the top directory from the stack, then changes to that directory
-    $(Write-ColoredCommand "goto -o|-Pop")
-
-  $(Write-Host "-l, -List" -ForegroundColor Green -NoNewline): lists aliases
-    $(Write-ColoredCommand "goto -l|-List")
-
-  $(Write-Host "-x, -Expand" -ForegroundColor Green -NoNewline): expands an alias
-    $(Write-ColoredCommand "goto -x|-Expand <alias>")
-
-  $(Write-Host "-c, -Cleanup" -ForegroundColor Green -NoNewline): cleans up non existent directory aliases
-    $(Write-ColoredCommand "goto -c|-Cleanup")
-
-  $(Write-Host "-h, -Help" -ForegroundColor Green -NoNewline): prints this help
-    $(Write-ColoredCommand "goto -h|-Help")
-
-  $(Write-Host "-v, -Version" -ForegroundColor Green -NoNewline): displays the version of the goto module
-    $(Write-ColoredCommand "goto -v|-Version")
-
-  $(Write-Host "-Update" -ForegroundColor Green -NoNewline): updates the goto module
-    $(Write-ColoredCommand "goto -Update")
-"@
-				Write-Host $helpText
+				foreach ($opt in $options) {
+					Write-Host "  $($opt.Option)" -ForegroundColor Green
+					Write-Host "    $($opt.Desc)" -ForegroundColor White
+					Write-Host "    Usage: " -ForegroundColor DarkGray -NoNewline
+					Write-Host "$($opt.Usage)`n" -ForegroundColor Yellow
+				}
 			}
 			Show-Help
 		}
+
 		'Push' {
 			$currentPath = (Get-Location).Path
 			Push-Location
