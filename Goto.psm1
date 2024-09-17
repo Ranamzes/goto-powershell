@@ -211,52 +211,44 @@ function Save-Aliases {
 	}
 }
 
-function gotoprint_similar {
-	param(
-		[string]$aliasInput,
-		[string]$action = "navigate"
-	)
-
+function _goto_print_similar {
+	param([string]$aliasInput)
 	$normalizedInput = $aliasInput.ToLower()
-
-	# Exact match
-	$exactMatch = $Global:DirectoryAliases.Keys | Where-Object { $_.ToLower() -eq $normalizedInput }
-	if ($exactMatch) {
-		return $exactMatch
+	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
+		$alias = $_.ToLower()
+		$inputChars = $normalizedInput.ToCharArray()
+		$aliasChars = $alias.ToCharArray()
+		$matchingCharsCount = ($inputChars | Where-Object { $aliasChars -contains $_ }).Count
+		$matchingCharsCount -eq $inputChars.Count
 	}
 
-	# Function to check if input matches alias
-	function Test-AliasMatch {
-		param($alias, $aliasToMatch)
-		$aliasLower = $alias.ToLower()
-		$aliasChars = $aliasToMatch.ToCharArray()
-
-		$lastIndex = -1
-		foreach ($char in $aliasChars) {
-			$index = $aliasLower.IndexOf($char, $lastIndex + 1)
-			if ($index -eq -1) { return $false }
-			$lastIndex = $index
+	$matchedAliases = $matchingAliases | ForEach-Object {
+		$alias = $_
+		$aliasChars = $alias.ToLower().ToCharArray()
+		$matchingCharsCount = ($normalizedInput.ToCharArray() | Where-Object { $aliasChars -contains $_ }).Count
+		[PSCustomObject]@{
+			Alias = $alias
+			Path  = $Global:DirectoryAliases[$alias]
+			Score = $matchingCharsCount
 		}
-
-		return $true
+	} | Sort-Object -Property Score -Descending
+	$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
+	if ($matchedAliases.Count -eq 1) {
+		$selectedAlias = $matchedAliases[0].Alias
+		$path = $Global:DirectoryAliases[$selectedAlias]
+		Write-Host "Only one matching alias found: '$selectedAlias' -> '$path'. Navigating..." -ForegroundColor Green
+		Set-Location $path
+		return $selectedAlias
 	}
-
-	# Find all matches
-	$foundMatches = $Global:DirectoryAliases.Keys | Where-Object { Test-AliasMatch $_ $normalizedInput }
-
-	# If there's only one match, return it immediately
-	if ($foundMatches.Count -eq 1) {
-		return $foundMatches[0]
-	}
-	elseif ($foundMatches.Count -gt 1) {
+	elseif ($matchedAliases.Count -gt 1) {
 		Write-Host "Did you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
 		Write-Host
 
-		$maxAliasLength = ($foundMatches | Measure-Object -Property Length -Maximum).Maximum
-		$numberWidth = $foundMatches.Count.ToString().Length
+		$maxAliasLength = ($partialMatches | Measure-Object -Property Length -Maximum).Maximum
+		$numberWidth = $matchedAliases.Count.ToString().Length
 
-		for ($i = 0; $i -lt $foundMatches.Count; $i++) {
-			$alias = $foundMatches[$i]
+		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
+			$alias = $matchedAliases[$i]
 			$path = $Global:DirectoryAliases[$alias]
 			$paddedNumber = ($i + 1).ToString().PadLeft($numberWidth)
 			$paddedAlias = $alias.PadRight($maxAliasLength)
@@ -269,24 +261,27 @@ function gotoprint_similar {
 			Write-Host $path -ForegroundColor Yellow
 		}
 
-		Write-Host
-
-		$choice = Read-Host "Enter your choice (1-$($foundMatches.Count))"
+		Write-Host "" # Additional indentation before selection
+		$choice = Read-Host "Enter your choice (1-$($matchedAliases.Count))"
 		if ([string]::IsNullOrWhiteSpace($choice)) {
 			Write-Host "No selection made. No action taken." -ForegroundColor Red
-			return $null
 		}
-		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $foundMatches.Count) {
-			return $foundMatches[[int]$choice - 1]
+
+		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
+			$selectedAlias = $matchedAliases[[int]$choice - 1].Alias
+			$path = $Global:DirectoryAliases[$selectedAlias]
+			Write-Host "Navigating to '$selectedAlias' -> '$path'." -ForegroundColor Green
+			Set-Location $path
+			return $selectedAlias
 		}
 		else {
 			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
-			return $null
 		}
 	}
 	else {
-		return $null
+		Write-Host "No similar aliases found for '$aliasInput'." -ForegroundColor Red
 	}
+	return $null
 }
 
 
