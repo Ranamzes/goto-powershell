@@ -206,45 +206,51 @@ function Save-Aliases {
 }
 
 function _goto_print_similar {
-	param([string]$aliasInput)
+	param(
+		[string]$aliasInput,
+		[string]$action = "navigate to"
+	)
 	$normalizedInput = $aliasInput.ToLower()
-	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
-		$alias = $_.ToLower()
-		$inputChars = $normalizedInput.ToCharArray()
-		$aliasChars = $alias.ToCharArray()
-		$matchingCharsCount = ($inputChars | Where-Object { $aliasChars -contains $_ }).Count
-		$matchingCharsCount -eq $inputChars.Count
-	}
-
-	$matchedAliases = $matchingAliases | ForEach-Object {
-		$alias = $_
-		$aliasChars = $alias.ToLower().ToCharArray()
-		$matchingCharsCount = ($normalizedInput.ToCharArray() | Where-Object { $aliasChars -contains $_ }).Count
+	$matchingAliases = $Global:DirectoryAliases.GetEnumerator() | Where-Object {
+		$alias = $_.Key.ToLower()
+		$normalizedInput.ToCharArray() | ForEach-Object { $alias.Contains($_) } | Where-Object { -not $_ } | ForEach-Object { return $false }
+		return $true
+	} | ForEach-Object {
+		$alias = $_.Key
+		$path = $_.Value
+		$score = 0
+		$inputIndex = 0
+		$alias.ToLower().ToCharArray() | ForEach-Object {
+			if ($inputIndex -lt $normalizedInput.Length -and $_ -eq $normalizedInput[$inputIndex]) {
+				$score++
+				$inputIndex++
+			}
+		}
 		[PSCustomObject]@{
 			Alias = $alias
-			Path  = $Global:DirectoryAliases[$alias]
-			Score = $matchingCharsCount
+			Path  = $path
+			Score = $score
 		}
 	} | Sort-Object -Property Score -Descending
-	$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
-	if ($matchedAliases.Count -eq 1) {
-		$selectedAlias = $matchedAliases[0].Alias
-		$path = $Global:DirectoryAliases[$selectedAlias]
+
+	if ($matchingAliases.Count -eq 1) {
+		$selectedAlias = $matchingAliases[0].Alias
+		$path = $matchingAliases[0].Path
 		Write-Host "Only one matching alias found: '$selectedAlias' -> '$path'. Navigating..." -ForegroundColor Green
 		Set-Location $path
 		return $selectedAlias
 	}
-	elseif ($matchedAliases.Count -gt 1) {
+	elseif ($matchingAliases.Count -gt 1) {
 		Write-Host "Did you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
 		Write-Host
 
-		$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
-		$numberWidth = $matchedAliases.Count.ToString().Length
+		$maxAliasLength = ($matchingAliases | Measure-Object -Property { $_.Alias.Length } -Maximum).Maximum
+		$numberWidth = $matchingAliases.Count.ToString().Length
 
-		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
-			$alias = $matchedAliases[$i]
-			$paddedAlias = $alias.Alias.ToString().PadRight($maxAliasLength)
-			$path = $alias.Path
+		for ($i = 0; $i -lt $matchingAliases.Count; $i++) {
+			$alias = $matchingAliases[$i].Alias
+			$path = $matchingAliases[$i].Path
+			$paddedAlias = $alias.PadRight($maxAliasLength)
 			$paddedNumber = ($i + 1).ToString().PadLeft($numberWidth)
 
 			Write-Host "[" -NoNewline -ForegroundColor DarkGray
@@ -256,14 +262,13 @@ function _goto_print_similar {
 		}
 
 		Write-Host "" # Additional indentation before selection
-		$choice = Read-Host "Enter your choice (1-$($matchedAliases.Count))"
+		$choice = Read-Host "Enter your choice (1-$($matchingAliases.Count))"
 		if ([string]::IsNullOrWhiteSpace($choice)) {
 			Write-Host "No selection made. No action taken." -ForegroundColor Red
 		}
-
-		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
-			$selectedAlias = $matchedAliases[[int]$choice - 1].Alias
-			$path = $Global:DirectoryAliases[$selectedAlias]
+		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchingAliases.Count) {
+			$selectedAlias = $matchingAliases[[int]$choice - 1].Alias
+			$path = $matchingAliases[[int]$choice - 1].Path
 			Write-Host "Navigating to '$selectedAlias' -> '$path'." -ForegroundColor Green
 			Set-Location $path
 			return $selectedAlias
@@ -277,7 +282,6 @@ function _goto_print_similar {
 	}
 	return $null
 }
-
 
 function goto {
 	[CmdletBinding(DefaultParameterSetName = 'Navigate')]
@@ -535,27 +539,19 @@ OPTIONS:
 			if ($Global:DirectoryAliases.ContainsKey($Alias)) {
 				$path = $Global:DirectoryAliases[$Alias]
 				if (Test-Path $path) {
+					Write-Host "Exact match found. Navigating to '$Alias' -> '$path'." -ForegroundColor Green
 					Set-Location $path
-					return
 				}
 				else {
 					Write-Host "The path '$path' for alias '$Alias' does not exist." -ForegroundColor Red
-					return
-				}
-			}
-			$selectedAlias = _goto_print_similar -aliasInput $Alias
-			if ($selectedAlias) {
-				$path = $Global:DirectoryAliases[$selectedAlias]
-				if (Test-Path $path) {
-					Set-Location $path
-				}
-				else {
-					Write-Host "The path '$path' for alias '$selectedAlias' does not exist." -ForegroundColor Red
 				}
 			}
 			else {
-				Write-Host "No matching alias found for '$Alias'." -ForegroundColor Red
-				Write-Host "Usage: goto [ <alias> | -r <alias> <path> | -u <alias> | -l | -x <alias> | -c | -p <alias> | -o | -v | -h | -Update ]" -ForegroundColor Yellow
+				$selectedAlias = _goto_print_similar -aliasInput $Alias
+				if (-not $selectedAlias) {
+					Write-Host "No matching alias found for '$Alias'." -ForegroundColor Red
+					Write-Host "Usage: goto [ <alias> | -r <alias> <path> | -u <alias> | -l | -x <alias> | -c | -p <alias> | -o | -v | -h | -Update ]" -ForegroundColor Yellow
+				}
 			}
 		}
 	}
