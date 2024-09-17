@@ -181,7 +181,7 @@ function _goto_print_similar {
 
 	$normalizedInput = $aliasInput.ToLower()
 
-	$exactMatch = $Global:DirectoryAliases.Keys | Where-Object { $_ -eq $aliasInput }
+	$exactMatch = $Global:DirectoryAliases.Keys | Where-Object { $_.ToLower() -eq $normalizedInput }
 	if ($exactMatch) {
 		return $exactMatch
 	}
@@ -191,12 +191,11 @@ function _goto_print_similar {
 
 	# If there are no partial coincidences, we are looking for advanced coincidences
 	if ($partialMatches.Count -eq 0) {
-		$partialMatches = $Global:DirectoryAliases.Keys | Where-Object {
-			$_.ToLower().Contains($normalizedInput) -or $normalizedInput.Contains($_.ToLower())
-		}
+		$partialMatches = $Global:DirectoryAliases.Keys | Where-Object { $_.ToLower().Contains($normalizedInput) }
 	}
 
 	$partialMatches = $partialMatches | Sort-Object
+
 	if ($partialMatches.Count -eq 1) {
 		return $partialMatches[0]
 	}
@@ -235,9 +234,6 @@ function _goto_print_similar {
 			return $null
 		}
 	}
-	elseif ($partialMatches.Count -eq 1) {
-		return $partialMatches[0]
-	}
 	else {
 		return $null
 	}
@@ -247,6 +243,9 @@ function goto {
 	[CmdletBinding(DefaultParameterSetName = 'Navigate')]
 	param(
 		[Parameter(ParameterSetName = 'Navigate', Position = 0)]
+		[Parameter(ParameterSetName = 'Unregister', Position = 1)]
+		[Parameter(ParameterSetName = 'Expand', Position = 1)]
+		[Parameter(ParameterSetName = 'Push', Position = 1)]
 		[string]$Alias,
 
 		[Parameter(ParameterSetName = 'Register', Mandatory = $true)]
