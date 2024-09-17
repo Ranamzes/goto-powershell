@@ -244,7 +244,7 @@ function _goto_print_similar {
 		Write-Host "Did you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
 		Write-Host
 
-		$maxAliasLength = ($partialMatches | Measure-Object -Property Length -Maximum).Maximum
+		$maxAliasLength = ($matchedAliases | Measure-Object -Property Length -Maximum).Maximum
 		$numberWidth = $matchedAliases.Count.ToString().Length
 
 		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
