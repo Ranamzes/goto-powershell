@@ -463,23 +463,16 @@ _____/\\\\\\\\\\\\___________________________________________
         __\////////////_______\/////_________\/////_______\/////_____
 "@
 				$lines = $gotoAsciiArt -split "`n"
-				$colors = @(
-					[System.ConsoleColor]::Cyan,
-					[System.ConsoleColor]::Green,
-					[System.ConsoleColor]::Yellow,
-					[System.ConsoleColor]::Magenta
-				)
+				$colors = @("Cyan", "Green", "Yellow", "Magenta")
 
-				$gradientSteps = $lines.Count
 				for ($i = 0; $i -lt $lines.Count; $i++) {
+					$color = $colors[$i % $colors.Count]
 					$line = $lines[$i]
-					$gradientColor = Get-GradientColor -StartColor $colors[0] -EndColor $colors[-1] -Step $i -TotalSteps $gradientSteps
-
 					if ($line -match '/\\\\') {
 						$parts = $line -split '(?<=\\\\)'
 						foreach ($part in $parts) {
 							if ($part -match '/\\\\') {
-								Write-Host $part -ForegroundColor $gradientColor -NoNewline
+								Write-Host $part -ForegroundColor $color -NoNewline
 							}
 							else {
 								Write-Host $part -ForegroundColor DarkGray -NoNewline
