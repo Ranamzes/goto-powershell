@@ -208,7 +208,8 @@ function Save-Aliases {
 function _goto_print_similar {
 	param(
 		[string]$aliasInput,
-		[string]$action = "navigate to"
+		[string]$action = "navigate to",
+		[switch]$SuppressNavigation
 	)
 	$normalizedInput = $aliasInput.ToLower()
 	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
@@ -232,8 +233,10 @@ function _goto_print_similar {
 	if ($matchedAliases.Count -eq 1) {
 		$selectedAlias = $matchedAliases[0].Alias
 		$path = $matchedAliases[0].Path
-		Write-Host "Only one matching alias found: '$selectedAlias' -> '$path'. Navigating..." -ForegroundColor Green
-		Set-Location $path
+		if (-not $SuppressNavigation) {
+			Write-Host "Only one matching alias found: '$selectedAlias' -> '$path'. Navigating..." -ForegroundColor Green
+			Set-Location $path
+		}
 		return $selectedAlias
 	}
 	elseif ($matchedAliases.Count -gt 1) {
@@ -280,7 +283,7 @@ function _goto_print_similar {
 }
 
 function goto {
-	[CmdletBinding(DefaultParameterSetName = 'Navigate')]
+	[CmdletBinding(SupportsShouldProcess = $false, PositionalBinding = $false, DefaultParameterSetName = 'Navigate')]
 	param(
 		[Parameter(ParameterSetName = 'Navigate', Position = 0)]
 		[Parameter(ParameterSetName = 'Unregister', Position = 1)]
@@ -334,12 +337,12 @@ function goto {
 
 	switch ($PSCmdlet.ParameterSetName) {
 		'Register' {
-			if (-not [string]::IsNullOrWhiteSpace($Alias) -and -not [string]::IsNullOrWhiteSpace($Path)) {
-				if (Test-Path $Path) {
-					$resolvedPath = Resolve-Path -Path $Path | Select-Object -ExpandProperty Path
-					$Global:DirectoryAliases[$Alias] = $resolvedPath
-					New-Item -Path Function:\ -Name "Global:$Alias" -Value { Set-Location $resolvedPath } | Out-Null
-					Write-Host "Alias '$Alias' registered for path '$resolvedPath'." -ForegroundColor Green
+			if (-not [string]::IsNullOrWhiteSpace($RegisterAlias) -and -not [string]::IsNullOrWhiteSpace($RegisterPath)) {
+				if (Test-Path $RegisterPath) {
+					$resolvedPath = Resolve-Path -Path $RegisterPath | Select-Object -ExpandProperty Path
+					$Global:DirectoryAliases[$RegisterAlias] = $resolvedPath
+					New-Item -Path Function:\ -Name "Global:$RegisterAlias" -Value { Set-Location $resolvedPath } | Out-Null
+					Write-Host "Alias '$RegisterAlias' registered for path '$resolvedPath'." -ForegroundColor Green
 					Save-Aliases
 				}
 				else {
@@ -347,7 +350,7 @@ function goto {
 				}
 			}
 			else {
-				Write-Host "Alias name or path not specified. Usage: goto r <alias_name> <path>" -ForegroundColor Yellow
+				Write-Host "Alias name or path not specified. Usage: goto -r <alias_name> <path>" -ForegroundColor Yellow
 			}
 		}
 		'Unregister' {
@@ -398,7 +401,7 @@ function goto {
 				Write-Host "Usage: goto x <alias>" -ForegroundColor Yellow
 				return
 			}
-			$selectedAlias = _goto_print_similar -aliasInput $Alias -action "expand"
+			$selectedAlias = _goto_print_similar -aliasInput $Alias -action "expand" -SuppressNavigation
 			if ($selectedAlias) {
 				$path = $Global:DirectoryAliases[$selectedAlias]
 				Write-Host "Alias: " -ForegroundColor Cyan -NoNewline
@@ -447,31 +450,99 @@ function goto {
 		}
 		'Help' {
 			function Show-Help {
+				$gotoAsciiArt = @"
+_____/\\\\\\\\\\\\___________________________________________
+ ___/\\\//////////____________________________________________
+  __/\\\_______________________________/\\\____________________
+   _\/\\\____/\\\\\\\_____/\\\\\_____/\\\\\\\\\\\_____/\\\\\____
+    _\/\\\___\/////\\\___/\\\///\\\__\////\\\////____/\\\///\\\__
+     _\/\\\_______\/\\\__/\\\__\//\\\____\/\\\_______/\\\__\//\\\_
+      _\/\\\_______\/\\\_\//\\\__/\\\_____\/\\\_/\\__\//\\\__/\\\__
+       _\//\\\\\\\\\\\\/___\///\\\\\/______\//\\\\\____\///\\\\\/___
+        __\////////////_______\/////_________\/////_______\/////_____
+"@
+				$lines = $gotoAsciiArt -split "`n"
+				$colors = @("Red", "Green", "Yellow", "Cyan")
+				$colorIndex = 0
+
+				for ($i = 0; $i -lt $lines.Length; $i++) {
+					$line = $lines[$i]
+					if ($i % 2 -eq 0) {
+						Write-Host $line -ForegroundColor DarkGray
+					}
+					else {
+						$parts = $line -split '(?<=\\\\)'
+						for ($j = 0; $j -lt $parts.Length; $j++) {
+							if ($j -eq 0) {
+								Write-Host $parts[$j] -ForegroundColor DarkGray -NoNewline
+							}
+							else {
+								Write-Host $parts[$j] -ForegroundColor $colors[$colorIndex] -NoNewline
+								$colorIndex = ($colorIndex + 1) % $colors.Length
+							}
+						}
+						Write-Host ""
+					}
+				}
+
+				function Write-ColoredCommand {
+					param (
+						[string]$Command
+					)
+					$parts = $Command -split ' '
+					for ($i = 0; $i -lt $parts.Length; $i++) {
+						$color = switch ($i) {
+							0 { "Cyan" }
+							1 { "Green" }
+							2 { "Yellow" }
+							3 { "Magenta" }
+							default { "White" }
+						}
+						Write-Host $parts[$i] -ForegroundColor $color -NoNewline
+						if ($i -lt $parts.Length - 1) {
+							Write-Host " " -NoNewline
+						}
+					}
+					Write-Host ""
+				}
+
 				$helpText = @"
-usage: goto [<option>] <alias> [<directory>]
-default usage:
-  goto <alias> - changes to the directory registered for the given alias
+
+Usage: goto [<option>] <alias> [<directory>]
+
+Default usage:
+  $(Write-ColoredCommand "goto <alias>") - changes to the directory registered for the given alias
+
 OPTIONS:
-  -r, -Register: registers an alias
-    goto -r|-Register <alias> <directory>
-  -u, -Unregister: unregisters an alias
-    goto -u|-Unregister <alias>
-  -p, -Push: pushes the current directory onto the stack, then performs goto
-    goto -p|-Push <alias>
-  -o, -Pop: pops the top directory from the stack, then changes to that directory
-    goto -o|-Pop
-  -l, -List: lists aliases
-    goto -l|-List
-  -x, -Expand: expands an alias
-    goto -x|-Expand <alias>
-  -c, -Cleanup: cleans up non existent directory aliases
-    goto -c|-Cleanup
-  -h, -Help: prints this help
-    goto -h|-Help
-  -v, -Version: displays the version of the goto module
-    goto -v|-Version
-  -Update: updates the goto module
-    goto -Update
+  $(Write-Host "-r, -Register" -ForegroundColor Green -NoNewline): registers an alias
+    $(Write-ColoredCommand "goto -r|-Register <alias> <directory>")
+
+  $(Write-Host "-u, -Unregister" -ForegroundColor Green -NoNewline): unregisters an alias
+    $(Write-ColoredCommand "goto -u|-Unregister <alias>")
+
+  $(Write-Host "-p, -Push" -ForegroundColor Green -NoNewline): pushes the current directory onto the stack, then performs goto
+    $(Write-ColoredCommand "goto -p|-Push <alias>")
+
+  $(Write-Host "-o, -Pop" -ForegroundColor Green -NoNewline): pops the top directory from the stack, then changes to that directory
+    $(Write-ColoredCommand "goto -o|-Pop")
+
+  $(Write-Host "-l, -List" -ForegroundColor Green -NoNewline): lists aliases
+    $(Write-ColoredCommand "goto -l|-List")
+
+  $(Write-Host "-x, -Expand" -ForegroundColor Green -NoNewline): expands an alias
+    $(Write-ColoredCommand "goto -x|-Expand <alias>")
+
+  $(Write-Host "-c, -Cleanup" -ForegroundColor Green -NoNewline): cleans up non existent directory aliases
+    $(Write-ColoredCommand "goto -c|-Cleanup")
+
+  $(Write-Host "-h, -Help" -ForegroundColor Green -NoNewline): prints this help
+    $(Write-ColoredCommand "goto -h|-Help")
+
+  $(Write-Host "-v, -Version" -ForegroundColor Green -NoNewline): displays the version of the goto module
+    $(Write-ColoredCommand "goto -v|-Version")
+
+  $(Write-Host "-Update" -ForegroundColor Green -NoNewline): updates the goto module
+    $(Write-ColoredCommand "goto -Update")
 "@
 				Write-Host $helpText
 			}
@@ -488,7 +559,7 @@ OPTIONS:
 			}
 			else {
 				if (-not [string]::IsNullOrWhiteSpace($Alias)) {
-					$selectedAlias = _goto_print_similar -aliasInput $Alias
+					$selectedAlias = _goto_print_similar -aliasInput $Alias -SuppressNavigation
 					if ($selectedAlias) {
 						$path = $Global:DirectoryAliases[$selectedAlias]
 						Write-Host "Pushed current directory '$currentPath' to stack and moved to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
