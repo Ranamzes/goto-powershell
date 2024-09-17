@@ -28,30 +28,68 @@ function Update-GotoModule {
 		Backup-Aliases
 		$currentAliases = $Global:DirectoryAliases.Clone()
 
+		$currentModule = Get-InstalledModule -Name Goto -ErrorAction Stop
 		$updateInfo = Test-ForUpdates
+
 		if ($updateInfo) {
 			Write-Host "Current Goto version: $($updateInfo.CurrentVersion)" -ForegroundColor Cyan
 			Write-Host "New version available: $($updateInfo.NewVersion)" -ForegroundColor Green
 
 			$confirmation = Read-Host "Do you want to update now? (Y/N)"
 			if ($confirmation -eq 'Y') {
-				Update-Module -Name Goto -Force -ErrorAction Stop
-				$updatedModule = Get-InstalledModule -Name Goto
-				Write-Host "Goto has been successfully updated to version $($updatedModule.Version)!" -ForegroundColor Green
+				# Let's try to use Update-Module
+				try {
+					Update-Module -Name Goto -Force -ErrorAction Stop
+					$updatedModule = Get-InstalledModule -Name Goto
 
-				$Global:DirectoryAliases = $currentAliases
-				Save-Aliases
-				Write-Host "Aliases have been restored." -ForegroundColor Green
+					if ($updatedModule.Version -gt $currentModule.Version) {
+						Write-Host "Goto has been successfully updated to version $($updatedModule.Version)!" -ForegroundColor Green
 
-				Initialize-GotoEnvironment
-				Write-Host "Please restart your PowerShell session to use the new version." -ForegroundColor Yellow
+						$Global:DirectoryAliases = $currentAliases
+						Save-Aliases
+						Write-Host "Aliases have been restored." -ForegroundColor Green
+
+						Initialize-GotoEnvironment
+						Write-Host "Please restart your PowerShell session to use the new version." -ForegroundColor Yellow
+					}
+					else {
+						throw "Update failed: Version did not change"
+					}
+				}
+				catch {
+					Write-Host "Error during Update-Module. Trying alternative update method..." -ForegroundColor Yellow
+
+					# Alternative update method
+					try {
+						Uninstall-Module -Name Goto -AllVersions -Force -ErrorAction Stop
+						Install-Module -Name Goto -Force -AllowClobber -ErrorAction Stop
+
+						$updatedModule = Get-InstalledModule -Name Goto
+						if ($updatedModule.Version -gt $currentModule.Version) {
+							Write-Host "Goto has been successfully updated to version $($updatedModule.Version)!" -ForegroundColor Green
+
+							$Global:DirectoryAliases = $currentAliases
+							Save-Aliases
+							Write-Host "Aliases have been restored." -ForegroundColor Green
+
+							Initialize-GotoEnvironment
+							Write-Host "Please restart your PowerShell session to use the new version." -ForegroundColor Yellow
+						}
+						else {
+							throw "Alternative update failed: Version did not change"
+						}
+					}
+					catch {
+						throw "Both update methods failed. Error: $_"
+					}
+				}
 			}
 			else {
 				Write-Host "Update cancelled." -ForegroundColor Yellow
 			}
 		}
 		else {
-			Write-Host "Goto is already at the latest version." -ForegroundColor Green
+			Write-Host "Goto is already at the latest version ($($currentModule.Version))." -ForegroundColor Green
 		}
 	}
 	catch {

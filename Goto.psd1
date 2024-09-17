@@ -12,7 +12,7 @@
 			Tags         = @('Navigation', 'Productivity', 'Aliases', 'Directory')
 			LicenseUri   = 'https://github.com/Ranamzes/goto-powershell/blob/main/LICENSE'
 			ProjectUri   = 'https://github.com/Ranamzes/goto-powershell'
-			ReleaseNotes = 'Fix -u, find similar'
+			ReleaseNotes = 'Fix update func'
 		}
 	}
 }
