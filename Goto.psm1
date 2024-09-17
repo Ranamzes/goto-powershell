@@ -474,64 +474,41 @@ _____/\\\\\\\\\\\\___________________________________________
 					}
 				}
 
-				# Colors
 				$colors = @{
-					DR = "DarkRed"; R = "Red"; DG = "DarkGreen"; G = "Green"
-					DY = "DarkYellow"; Y = "Yellow"; DC = "DarkCyan"; C = "Cyan"
+					DR = "38;2;100;0;0"
+					R  = "38;2;255;0;0"
+					DG = "38;2;0;100;0"
+					G  = "38;2;0;255;0"
+					DY = "38;2;100;100;0"
+					Y  = "38;2;255;255;0"
+					DC = "38;2;0;100;100"
+					C  = "38;2;0;255;255"
 				}
 
-				# Coloring the first and second line
-				foreach ($line in $lines[0..1]) {
-					foreach ($char in $line.ToCharArray()) {
-						switch ($char) {
-							'/' { Write-ColoredChar $char $colors.DR }
-							'\' { Write-ColoredChar $char $colors.R }
-							default { Write-ColoredChar $char "DarkGray" }
-						}
-					}
-					Write-Host ""
-				}
-
-				# Coloring the third line
-				$thirdLine = $lines[2]
-				Write-ColoredChar $thirdLine[0] $colors.DR
-				Write-ColoredChar $thirdLine[1] $colors.DR
-				Write-ColoredChar $thirdLine[2] $colors.R
-				Write-ColoredChar $thirdLine[3] $colors.R
-				Write-ColoredChar $thirdLine[4] $colors.R
-				foreach ($char in $thirdLine[5..($thirdLine.Length - 5)]) { Write-ColoredChar $char "DarkGray" }
-				Write-ColoredChar $thirdLine[-4] $colors.DG
-				Write-ColoredChar $thirdLine[-3] $colors.G
-				Write-ColoredChar $thirdLine[-2] $colors.G
-				Write-ColoredChar $thirdLine[-1] $colors.G
-				Write-Host ""
-
-				# The color of the rest of the lines
 				$colorPatterns = @(
-					@("DR", "R", "DR", "R", "DY", "Y", "DG", "G", "DC", "C"),
-					@("DR", "R", "DR", "R", "DY", "Y", "DY", "Y", "DG", "G", "DG", "DC", "C", "DC", "C"),
-					@("DR", "R", "DR", "R", "DY", "Y", "DY", "Y", "DG", "G", "DC", "C", "DC", "C"),
-					@("DR", "R", "DR", "R", "DY", "Y", "DY", "Y", "DG", "G", "DG", "G", "DC", "C", "DC"),
-					@("DR", "R", "DR", "DY", "Y", "DY", "DG", "G", "DC", "C", "DC"),
-					@("DR", "DY", "DG", "DC")
+					@("DR", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R"),
+					@("DR", "R", "R", "R", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR"),
+					@("DR", "R", "R", "R", "DG", "G", "G", "G"),
+					@("DR", "DR", "R", "R", "R", "DR", "R", "R", "R", "R", "R", "R", "R", "DY", "Y", "Y", "Y", "Y", "Y", "DG", "G", "G", "G", "G", "G", "G", "G", "G", "G", "G", "G", "DC", "C", "C", "C", "C", "C"),
+					@("DR", "DR", "R", "R", "R", "DR", "DR", "DR", "DR", "DR", "DR", "R", "R", "R", "DY", "Y", "Y", "Y", "DY", "DY", "DY", "Y", "Y", "Y", "DG", "DG", "DG", "DG", "DG", "G", "G", "G", "DG", "DG", "DG", "DG", "DC", "C", "C", "C", "DC", "DC", "DC", "C", "C", "C"),
+					@("DR", "DR", "R", "R", "R", "DR", "DR", "R", "R", "R", "DY", "Y", "Y", "Y", "DY", "DY", "DY", "Y", "Y", "Y", "DG", "DG", "G", "G", "G", "DC", "C", "C", "C", "DC", "DC", "DC", "C", "C", "C"),
+					@("DR", "DR", "R", "R", "R", "DR", "DR", "R", "R", "R", "DY", "DY", "DY", "Y", "Y", "Y", "DY", "Y", "Y", "Y", "DG", "DG", "G", "G", "G", "DG", "G", "G", "DC", "DC", "DC", "C", "C", "C", "DC", "C", "C", "C"),
+					@("DR", "DR", "DR", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "DR", "DY", "DY", "DY", "DY", "Y", "Y", "Y", "Y", "Y", "DY", "DG", "DG", "DG", "G", "G", "G", "G", "G", "DC", "DC", "DC", "DC", "C", "C", "C", "C", "C", "DC"),
+					@("DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DY", "DY", "DY", "DY", "DY", "DY", "DG", "DG", "DG", "DG", "DG", "DG", "DC", "DC", "DC", "DC", "DC", "DC")
 				)
 
-				for ($i = 3; $i -lt $lines.Count; $i++) {
+				for ($i = 0; $i -lt $lines.Count; $i++) {
 					$line = $lines[$i]
-					$pattern = $colorPatterns[$i - 3]
+					$pattern = $colorPatterns[$i]
 					$colorIndex = 0
-					$currentColor = $pattern[$colorIndex]
 
 					foreach ($char in $line.ToCharArray()) {
 						if ($char -eq '_') {
 							Write-ColoredChar $char "DarkGray"
 						}
-						elseif ($char -in '/', '\') {
-							Write-ColoredChar $char $colors[$currentColor]
-							if ($char -eq '\' -and $colorIndex -lt $pattern.Count - 1) {
-								$colorIndex++
-								$currentColor = $pattern[$colorIndex]
-							}
+						elseif ($char -in '/', '\', '*') {
+							Write-ColoredChar $char $colors[$pattern[$colorIndex]]
+							$colorIndex = ($colorIndex + 1) % $pattern.Count
 						}
 						else {
 							Write-Host $char -NoNewline
