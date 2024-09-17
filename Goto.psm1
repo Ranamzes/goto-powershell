@@ -244,7 +244,7 @@ function _goto_print_similar {
 		Write-Host "Did you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
 		Write-Host
 
-		$maxAliasLength = ($matchedAliases | Measure-Object -Property Length -Maximum).Maximum
+		$maxAliasLength = ($matchedAliases | Measure-Object -Property Alias -Maximum).Maximum.Length
 		$numberWidth = $matchedAliases.Count.ToString().Length
 
 		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
@@ -538,11 +538,21 @@ OPTIONS:
 				Show-Help
 				return
 			}
+			if ($Global:DirectoryAliases.ContainsKey($Alias)) {
+				$path = $Global:DirectoryAliases[$Alias]
+				if (Test-Path $path) {
+					Set-Location $path
+					return
+				}
+				else {
+					Write-Host "The path '$path' for alias '$Alias' does not exist." -ForegroundColor Red
+					return
+				}
+			}
 			$selectedAlias = _goto_print_similar -aliasInput $Alias
 			if ($selectedAlias) {
 				$path = $Global:DirectoryAliases[$selectedAlias]
 				if (Test-Path $path) {
-					Write-Host "Navigating to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
 					Set-Location $path
 				}
 				else {
