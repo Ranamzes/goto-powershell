@@ -251,7 +251,7 @@ function _goto_print_similar {
 			$alias = $matchedAliases[$i]
 			$path = $Global:DirectoryAliases[$alias]
 			$paddedNumber = ($i + 1).ToString().PadLeft($numberWidth)
-			$paddedAlias = $alias.PadRight($maxAliasLength)
+			$paddedAlias = $alias.Alias.PadRight($maxAliasLength)
 
 			Write-Host "[" -NoNewline -ForegroundColor DarkGray
 			Write-Host $paddedNumber -NoNewline -ForegroundColor Cyan
