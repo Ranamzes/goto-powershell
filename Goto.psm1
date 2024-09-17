@@ -475,14 +475,14 @@ _____/\\\\\\\\\\\\___________________________________________
 				}
 
 				$colors = @{
-					DR = "38;2;100;0;0"
-					R  = "38;2;255;0;0"
-					DG = "38;2;0;100;0"
-					G  = "38;2;0;255;0"
-					DY = "38;2;100;100;0"
-					Y  = "38;2;255;255;0"
-					DC = "38;2;0;100;100"
-					C  = "38;2;0;255;255"
+					DR = [System.ConsoleColor]::DarkMagenta
+					R  = [System.ConsoleColor]::Red
+					DG = [System.ConsoleColor]::DarkGreen
+					G  = [System.ConsoleColor]::Green
+					DY = [System.ConsoleColor]::DarkYellow
+					Y  = [System.ConsoleColor]::Yellow
+					DC = [System.ConsoleColor]::DarkBlue
+					C  = [System.ConsoleColor]::Cyan
 				}
 
 				$colorPatterns = @(
