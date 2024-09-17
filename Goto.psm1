@@ -463,16 +463,23 @@ _____/\\\\\\\\\\\\___________________________________________
         __\////////////_______\/////_________\/////_______\/////_____
 "@
 				$lines = $gotoAsciiArt -split "`n"
-				$colors = @("Cyan", "Yellow", "Green", "Magenta")
-				$colorIndex = 0
+				$colors = @(
+					[System.ConsoleColor]::Cyan,
+					[System.ConsoleColor]::Green,
+					[System.ConsoleColor]::Yellow,
+					[System.ConsoleColor]::Magenta
+				)
 
-				foreach ($line in $lines) {
+				$gradientSteps = $lines.Count
+				for ($i = 0; $i -lt $lines.Count; $i++) {
+					$line = $lines[$i]
+					$gradientColor = Get-GradientColor -StartColor $colors[0] -EndColor $colors[-1] -Step $i -TotalSteps $gradientSteps
+
 					if ($line -match '/\\\\') {
 						$parts = $line -split '(?<=\\\\)'
 						foreach ($part in $parts) {
 							if ($part -match '/\\\\') {
-								Write-Host $part -ForegroundColor $colors[$colorIndex] -NoNewline
-								$colorIndex = ($colorIndex + 1) % $colors.Length
+								Write-Host $part -ForegroundColor $gradientColor -NoNewline
 							}
 							else {
 								Write-Host $part -ForegroundColor DarkGray -NoNewline
@@ -491,6 +498,11 @@ _____/\\\\\\\\\\\\___________________________________________
 				Write-Host "Default usage:" -ForegroundColor Cyan
 				Write-Host "  goto <alias> " -ForegroundColor Yellow -NoNewline
 				Write-Host "- changes to the directory registered for the given alias`n" -ForegroundColor White
+
+				Write-Host "Partial Alias Matching:" -ForegroundColor Cyan
+				Write-Host "  You can use partial aliases. For example, if you have an alias 'documents'," -ForegroundColor White
+				Write-Host "  you can use 'goto doc' to match it. If multiple aliases match, you'll be" -ForegroundColor White
+				Write-Host "  prompted to choose the correct one.`n" -ForegroundColor White
 
 				Write-Host "OPTIONS:" -ForegroundColor Cyan
 				$options = @(
