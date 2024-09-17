@@ -107,19 +107,12 @@ function Test-ForUpdates {
 	}
 
 	try {
-		$onlineModule = Find-Module -Name Goto -ErrorAction Stop
+		$onlineModule = Find-Module -Name Goto -Repository PSGallery -ErrorAction Stop
 		$newVersion = $onlineModule.Version
 	}
 	catch {
-		Write-Verbose "Unable to check for updates using Find-Module. Using alternative method."
-		try {
-			$response = Invoke-RestMethod -Uri "https://www.powershellgallery.com/api/v2/Packages?`$filter=Id eq 'Goto' and IsLatestVersion" -ErrorAction Stop
-			$newVersion = [version]($response.properties.Version)
-		}
-		catch {
-			Write-Verbose "Failed to check for updates using both methods. Please check your internet connection."
-			return $null
-		}
+		Write-Warning "Unable to check for updates. Please check your internet connection and try again later."
+		return $null
 	}
 
 	if ($newVersion -gt $currentModule.Version) {
