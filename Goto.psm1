@@ -211,7 +211,7 @@ function Save-Aliases {
 	}
 }
 
-function _goto_print_similar {
+function gotoprint_similar {
 	param(
 		[string]$aliasInput,
 		[string]$action = "navigate"
@@ -225,38 +225,38 @@ function _goto_print_similar {
 		return $exactMatch
 	}
 
-	# Partial match at the beginning
-	$partialMatches = $Global:DirectoryAliases.Keys | Where-Object { $_.ToLower().StartsWith($normalizedInput) }
+	# Function to check if input matches alias
+	function Test-AliasMatch {
+		param($alias, $aliasToMatch)
+		$aliasLower = $alias.ToLower()
+		$aliasChars = $aliasToMatch.ToCharArray()
 
-	# If no partial matches at the beginning, look for matches anywhere in the alias
-	if ($partialMatches.Count -eq 0) {
-		$partialMatches = $Global:DirectoryAliases.Keys | Where-Object {
-			$alias = $_.ToLower()
-			$inputChars = $normalizedInput.ToCharArray()
-			$lastIndex = -1
-			$inputChars | ForEach-Object {
-				$index = $alias.IndexOf($_, $lastIndex + 1)
-				if ($index -eq -1) { return $false }
-				$lastIndex = $index
-			}
-			return $true
+		$lastIndex = -1
+		foreach ($char in $aliasChars) {
+			$index = $aliasLower.IndexOf($char, $lastIndex + 1)
+			if ($index -eq -1) { return $false }
+			$lastIndex = $index
 		}
+
+		return $true
 	}
 
-	$partialMatches = $partialMatches | Sort-Object
+	# Find all matches
+	$foundMatches = $Global:DirectoryAliases.Keys | Where-Object { Test-AliasMatch $_ $normalizedInput }
 
-	if ($partialMatches.Count -eq 1) {
-		return $partialMatches[0]
+	# If there's only one match, return it immediately
+	if ($foundMatches.Count -eq 1) {
+		return $foundMatches[0]
 	}
-	elseif ($partialMatches.Count -gt 1) {
+	elseif ($foundMatches.Count -gt 1) {
 		Write-Host "Did you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
 		Write-Host
 
-		$maxAliasLength = ($partialMatches | Measure-Object -Property Length -Maximum).Maximum
-		$numberWidth = $partialMatches.Count.ToString().Length
+		$maxAliasLength = ($foundMatches | Measure-Object -Property Length -Maximum).Maximum
+		$numberWidth = $foundMatches.Count.ToString().Length
 
-		for ($i = 0; $i -lt $partialMatches.Count; $i++) {
-			$alias = $partialMatches[$i]
+		for ($i = 0; $i -lt $foundMatches.Count; $i++) {
+			$alias = $foundMatches[$i]
 			$path = $Global:DirectoryAliases[$alias]
 			$paddedNumber = ($i + 1).ToString().PadLeft($numberWidth)
 			$paddedAlias = $alias.PadRight($maxAliasLength)
@@ -270,13 +270,14 @@ function _goto_print_similar {
 		}
 
 		Write-Host
-		$choice = Read-Host "Enter your choice (1-$($partialMatches.Count))"
+
+		$choice = Read-Host "Enter your choice (1-$($foundMatches.Count))"
 		if ([string]::IsNullOrWhiteSpace($choice)) {
 			Write-Host "No selection made. No action taken." -ForegroundColor Red
 			return $null
 		}
-		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $partialMatches.Count) {
-			return $partialMatches[[int]$choice - 1]
+		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $foundMatches.Count) {
+			return $foundMatches[[int]$choice - 1]
 		}
 		else {
 			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
