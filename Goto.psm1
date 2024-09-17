@@ -134,6 +134,7 @@ function Initialize-GotoEnvironment {
 		Save-Aliases
 	}
 	$profileContent = @"
+
 # Import Goto module
 Import-Module Goto -DisableNameChecking
 # Error handling for WinGet
