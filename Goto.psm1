@@ -219,17 +219,28 @@ function _goto_print_similar {
 
 	$normalizedInput = $aliasInput.ToLower()
 
+	# Exact match
 	$exactMatch = $Global:DirectoryAliases.Keys | Where-Object { $_.ToLower() -eq $normalizedInput }
 	if ($exactMatch) {
 		return $exactMatch
 	}
 
-	# Partial coincidence (beginning of Alias)
+	# Partial match at the beginning
 	$partialMatches = $Global:DirectoryAliases.Keys | Where-Object { $_.ToLower().StartsWith($normalizedInput) }
 
-	# If there are no partial coincidences, we are looking for advanced coincidences
+	# If no partial matches at the beginning, look for matches anywhere in the alias
 	if ($partialMatches.Count -eq 0) {
-		$partialMatches = $Global:DirectoryAliases.Keys | Where-Object { $_.ToLower().Contains($normalizedInput) }
+		$partialMatches = $Global:DirectoryAliases.Keys | Where-Object {
+			$alias = $_.ToLower()
+			$inputChars = $normalizedInput.ToCharArray()
+			$lastIndex = -1
+			$inputChars | ForEach-Object {
+				$index = $alias.IndexOf($_, $lastIndex + 1)
+				if ($index -eq -1) { return $false }
+				$lastIndex = $index
+			}
+			return $true
+		}
 	}
 
 	$partialMatches = $partialMatches | Sort-Object
@@ -276,6 +287,7 @@ function _goto_print_similar {
 		return $null
 	}
 }
+
 
 function goto {
 	[CmdletBinding(DefaultParameterSetName = 'Navigate')]
