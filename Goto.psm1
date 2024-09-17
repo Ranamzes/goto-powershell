@@ -463,26 +463,81 @@ _____/\\\\\\\\\\\\___________________________________________
         __\////////////_______\/////_________\/////_______\/////_____
 "@
 				$lines = $gotoAsciiArt -split "`n"
-				$colors = @("Cyan", "Green", "Yellow", "Magenta")
 
-				for ($i = 0; $i -lt $lines.Count; $i++) {
-					$color = $colors[$i % $colors.Count]
-					$line = $lines[$i]
-					if ($line -match '/\\\\') {
-						$parts = $line -split '(?<=\\\\)'
-						foreach ($part in $parts) {
-							if ($part -match '/\\\\') {
-								Write-Host $part -ForegroundColor $color -NoNewline
-							}
-							else {
-								Write-Host $part -ForegroundColor DarkGray -NoNewline
-							}
-						}
-						Write-Host ""
+				function Write-ColoredChar {
+					param($char, $color)
+					if ($char -eq '_') {
+						Write-Host $char -ForegroundColor DarkGray -NoNewline
 					}
 					else {
-						Write-Host $line -ForegroundColor DarkGray
+						Write-Host $char -ForegroundColor $color -NoNewline
 					}
+				}
+
+				# Colors
+				$colors = @{
+					DR = "DarkRed"; R = "Red"; DG = "DarkGreen"; G = "Green"
+					DY = "DarkYellow"; Y = "Yellow"; DC = "DarkCyan"; C = "Cyan"
+				}
+
+				# Coloring the first and second line
+				foreach ($line in $lines[0..1]) {
+					foreach ($char in $line.ToCharArray()) {
+						switch ($char) {
+							'/' { Write-ColoredChar $char $colors.DR }
+							'\' { Write-ColoredChar $char $colors.R }
+							default { Write-ColoredChar $char "DarkGray" }
+						}
+					}
+					Write-Host ""
+				}
+
+				# Coloring the third line
+				$thirdLine = $lines[2]
+				Write-ColoredChar $thirdLine[0] $colors.DR
+				Write-ColoredChar $thirdLine[1] $colors.DR
+				Write-ColoredChar $thirdLine[2] $colors.R
+				Write-ColoredChar $thirdLine[3] $colors.R
+				Write-ColoredChar $thirdLine[4] $colors.R
+				foreach ($char in $thirdLine[5..($thirdLine.Length - 5)]) { Write-ColoredChar $char "DarkGray" }
+				Write-ColoredChar $thirdLine[-4] $colors.DG
+				Write-ColoredChar $thirdLine[-3] $colors.G
+				Write-ColoredChar $thirdLine[-2] $colors.G
+				Write-ColoredChar $thirdLine[-1] $colors.G
+				Write-Host ""
+
+				# The color of the rest of the lines
+				$colorPatterns = @(
+					@("DR", "R", "DR", "R", "DY", "Y", "DG", "G", "DC", "C"),
+					@("DR", "R", "DR", "R", "DY", "Y", "DY", "Y", "DG", "G", "DG", "DC", "C", "DC", "C"),
+					@("DR", "R", "DR", "R", "DY", "Y", "DY", "Y", "DG", "G", "DC", "C", "DC", "C"),
+					@("DR", "R", "DR", "R", "DY", "Y", "DY", "Y", "DG", "G", "DG", "G", "DC", "C", "DC"),
+					@("DR", "R", "DR", "DY", "Y", "DY", "DG", "G", "DC", "C", "DC"),
+					@("DR", "DY", "DG", "DC")
+				)
+
+				for ($i = 3; $i -lt $lines.Count; $i++) {
+					$line = $lines[$i]
+					$pattern = $colorPatterns[$i - 3]
+					$colorIndex = 0
+					$currentColor = $pattern[$colorIndex]
+
+					foreach ($char in $line.ToCharArray()) {
+						if ($char -eq '_') {
+							Write-ColoredChar $char "DarkGray"
+						}
+						elseif ($char -in '/', '\') {
+							Write-ColoredChar $char $colors[$currentColor]
+							if ($char -eq '\' -and $colorIndex -lt $pattern.Count - 1) {
+								$colorIndex++
+								$currentColor = $pattern[$colorIndex]
+							}
+						}
+						else {
+							Write-Host $char -NoNewline
+						}
+					}
+					Write-Host ""
 				}
 
 				Write-Host "`nUsage: " -ForegroundColor Cyan -NoNewline
@@ -613,7 +668,7 @@ $updateCheckJob = Start-Job -ScriptBlock {
 			Test-ForUpdates
 		}
 	}
- else {
+	else {
 		Test-ForUpdates
 	}
 } -ArgumentList $script:GotoDataPath, $script:UpdateInfoFile
