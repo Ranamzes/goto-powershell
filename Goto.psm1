@@ -137,14 +137,6 @@ function Initialize-GotoEnvironment {
 
 # Import Goto module
 Import-Module Goto -DisableNameChecking
-# Error handling for WinGet
-`$ErrorActionPreference = 'Continue'
-try {
-    `$null = Get-Command winget -ErrorAction Stop
-    Import-Module Microsoft.WinGet.Client -ErrorAction SilentlyContinue
-} catch {
-    Write-Verbose "WinGet not detected. Some features may be unavailable."
-}
 "@
 	if (-not (Test-Path -Path $PROFILE)) {
 		New-Item -Path $PROFILE -ItemType File -Force | Out-Null
@@ -410,11 +402,17 @@ function goto {
 				Write-Host "No aliases registered." -ForegroundColor Yellow
 			}
 			else {
-				$aliases = $Global:DirectoryAliases.GetEnumerator() | Sort-Object Name
+				$aliases = $Global:DirectoryAliases.GetEnumerator() |
+				Where-Object { $null -ne $_.Key -and $null -ne $_.Value } |
+				Sort-Object Name
 
-				$maxAliasLength = ($aliases | ForEach-Object { $_.Key.Length } | Measure-Object -Maximum).Maximum
-				$maxPathLength = ($aliases | ForEach-Object { $_.Value.Length } | Measure-Object -Maximum).Maximum
+				if ($aliases.Count -eq 0) {
+					Write-Host "No valid aliases found." -ForegroundColor Yellow
+					return
+				}
 
+				$maxAliasLength = ($aliases | ForEach-Object { $_.Key.ToString().Length } | Measure-Object -Maximum).Maximum
+				$maxPathLength = ($aliases | ForEach-Object { $_.Value.ToString().Length } | Measure-Object -Maximum).Maximum
 				$headerLength = 4 + $maxAliasLength + 4 + $maxPathLength
 				$separatorLine = "-" * $headerLength
 
@@ -422,8 +420,8 @@ function goto {
 				Write-Host $separatorLine -ForegroundColor DarkGray
 
 				foreach ($alias in $aliases) {
-					$aliasDisplay = $alias.Key.PadRight($maxAliasLength)
-					$pathDisplay = $alias.Value.PadRight($maxPathLength)
+					$aliasDisplay = $alias.Key.ToString().PadRight($maxAliasLength)
+					$pathDisplay = $alias.Value.ToString().PadRight($maxPathLength)
 					Write-Host "  " -NoNewline
 					Write-Host $aliasDisplay -ForegroundColor Green -NoNewline
 					Write-Host " -> " -ForegroundColor DarkGray -NoNewline
