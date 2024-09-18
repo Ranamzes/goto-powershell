@@ -37,7 +37,6 @@ function Update-GotoModule {
 
 			$confirmation = Read-Host "Do you want to update now? (Y/N)"
 			if ($confirmation -eq 'Y') {
-				# Let's try to use Update-Module
 				try {
 					Update-Module -Name Goto -Force -ErrorAction Stop
 					$updatedModule = Get-InstalledModule -Name Goto
@@ -198,136 +197,131 @@ function Save-Aliases {
 }
 
 function _goto_print_similar {
-	param(
-		[string]$aliasInput,
-		[string]$action = "navigate to",
-		[switch]$SuppressNavigation
-	)
-
-	$normalizedInput = $aliasInput.ToLower()
-
-	function Get-MatchScore {
-		param (
-			[string]$alias,
-			[string]$searchTerm
+		param(
+				[string]$aliasInput,
+				[string]$action = "navigate to",
+				[switch]$SuppressNavigation
 		)
-		$alias = $alias.ToLower()
-		$score = 0
-		$matchedChars = 0
-		$consecutiveMatches = 0
-		$lastMatchIndex = -1
 
-		for ($i = 0; $i -lt $searchTerm.Length; $i++) {
-			$index = $alias.IndexOf($searchTerm[$i])
-			if ($index -ne -1) {
-				$score += 10  # Basic glasses for coincidence
-				$matchedChars++
+		$normalizedInput = $aliasInput.ToLower()
 
-				if ($index -eq $lastMatchIndex + 1) {
-					$consecutiveMatches++
-					$score += $consecutiveMatches * 5  # Additional glasses for consistent coincidences
+		function Get-MatchScore {
+				param (
+						[string]$alias,
+						[string]$searchTerm
+				)
+				$alias = $alias.ToLower()
+				$score = 0
+				$matchedChars = 0
+
+				foreach ($char in $searchTerm.ToCharArray()) {
+						if ($alias.Contains($char)) {
+								$matchedChars++
+								$score += 10
+						} else {
+								return 0
+						}
+				}
+
+				if ($matchedChars -eq $searchTerm.Length) {
+						$score += 100
+
+						$lastIndex = -1
+						$orderBonus = 0
+						foreach ($char in $searchTerm.ToCharArray()) {
+								$index = $alias.IndexOf($char, $lastIndex + 1)
+								if ($index -gt $lastIndex) {
+										$orderBonus += 10
+										$lastIndex = $index
+								}
+						}
+						$score += $orderBonus
+
+						if ($alias.StartsWith($searchTerm)) {
+								$score += 200
+						}
+
+						return $score
+				}
+				return 0
+		}
+
+		$matchedAliases = @()
+
+		foreach ($entry in $Global:DirectoryAliases.GetEnumerator()) {
+				$alias = $entry.Key
+				$path = $entry.Value
+				$score = Get-MatchScore -alias $alias -searchTerm $normalizedInput
+				if ($score -gt 0) {
+						$matchedAliases += [PSCustomObject]@{
+								Alias = $alias
+								Path = $path
+								Score = $score
+						}
+				}
+		}
+
+		$matchedAliases = @($matchedAliases | Sort-Object -Property Score -Descending)
+
+		if ($matchedAliases.Count -eq 1) {
+				$selectedAlias = $matchedAliases[0].Alias
+				$path = $matchedAliases[0].Path
+				if (-not $SuppressNavigation) {
+						if (Test-Path $path) {
+								Write-Host "Navigating to '$selectedAlias' -> '$path'." -ForegroundColor Green
+								Set-Location $path
+						} else {
+								Write-Host "The path '$path' for alias '$selectedAlias' does not exist." -ForegroundColor Red
+						}
+				}
+				return $selectedAlias
+		}
+		elseif ($matchedAliases.Count -gt 1) {
+				Write-Host "Did you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
+				Write-Host ""
+
+				$maxAliasLength = ($matchedAliases | ForEach-Object { $_.Alias.Length } | Measure-Object -Maximum).Maximum
+				$numberWidth = $matchedAliases.Count.ToString().Length
+
+				for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
+						$alias = $matchedAliases[$i].Alias
+						$path = $matchedAliases[$i].Path
+						$paddedAlias = $alias.PadRight($maxAliasLength)
+						$paddedNumber = ($i + 1).ToString().PadLeft($numberWidth)
+
+						Write-Host "[" -NoNewline -ForegroundColor DarkGray
+						Write-Host $paddedNumber -NoNewline -ForegroundColor Cyan
+						Write-Host "]:" -NoNewline -ForegroundColor DarkGray
+						Write-Host " $paddedAlias" -NoNewline -ForegroundColor Green
+						Write-Host " -> " -NoNewline -ForegroundColor DarkGray
+						Write-Host $path -ForegroundColor Yellow
+				}
+
+				Write-Host ""
+				$choice = Read-Host "Enter your choice (1-$($matchedAliases.Count))"
+				if ([string]::IsNullOrEmpty($choice)) {
+						Write-Host "Operation cancelled. No action taken." -ForegroundColor Yellow
+						return $null
+				}
+				elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
+						$selectedAlias = $matchedAliases[[int]$choice - 1].Alias
+						$path = $matchedAliases[[int]$choice - 1].Path
+						if (Test-Path $path) {
+								Write-Host "Navigating to '$selectedAlias' -> '$path'." -ForegroundColor Green
+								Set-Location $path
+						} else {
+								Write-Host "The path '$path' for alias '$selectedAlias' does not exist." -ForegroundColor Red
+						}
+						return $selectedAlias
 				}
 				else {
-					$consecutiveMatches = 0
+						Write-Host "Invalid selection. No action taken." -ForegroundColor Red
+						return $null
 				}
-
-				$lastMatchIndex = $index
-			}
-		}
-
-		# Bonus for the complete coincidence of all the symbols of the input
-		if ($matchedChars -eq $searchTerm.Length) {
-			$score += 100
-		}
-
-		# Bonus for coincidence at the beginning
-		if ($alias.StartsWith($searchTerm)) {
-			$score += 200
-		}
-
-		# Fulfillment for extra characters
-		$score -= ($alias.Length - $matchedChars) * 2
-
-		return $score
-	}
-
-	$matchedAliases = @()
-
-	foreach ($entry in $Global:DirectoryAliases.GetEnumerator()) {
-		$alias = $entry.Key
-		$path = $entry.Value
-		$score = Get-MatchScore -alias $alias -searchTerm $normalizedInput
-		if ($score -gt 0) {
-			$matchedAliases += New-Object PSObject -Property @{
-				Alias = $alias
-				Path  = $path
-				Score = $score
-			}
-		}
-	}
-
-	$matchedAliases = @($matchedAliases | Sort-Object -Property Score -Descending)
-
-	if ($matchedAliases.Count -eq 1) {
-		$selectedAlias = $matchedAliases[0].Alias
-		$path = $matchedAliases[0].Path
-		if (-not $SuppressNavigation) {
-			if (Test-Path $path) {
-				Write-Host "Only one matching alias found: '$selectedAlias' -> '$path'. Navigating..." -ForegroundColor Green
-				Set-Location $path
-			}
-			else {
-				Write-Host "The path '$path' for alias '$selectedAlias' does not exist." -ForegroundColor Red
-			}
-		}
-		return $selectedAlias
-	}
-	elseif ($matchedAliases.Count -gt 1) {
-		Write-Host "Did you mean one of these? Type the number to $action, or press ENTER to cancel:" -ForegroundColor Yellow
-		Write-Host ""
-
-		$maxAliasLength = ($matchedAliases | ForEach-Object { $_.Alias.Length } | Measure-Object -Maximum).Maximum
-		$numberWidth = $matchedAliases.Count.ToString().Length
-
-		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
-			$alias = $matchedAliases[$i].Alias
-			$path = $matchedAliases[$i].Path
-			$paddedAlias = $alias.PadRight($maxAliasLength)
-			$paddedNumber = ($i + 1).ToString().PadLeft($numberWidth)
-
-			Write-Host "[" -NoNewline -ForegroundColor DarkGray
-			Write-Host $paddedNumber -NoNewline -ForegroundColor Cyan
-			Write-Host "]:" -NoNewline -ForegroundColor DarkGray
-			Write-Host " $paddedAlias" -NoNewline -ForegroundColor Green
-			Write-Host " -> " -NoNewline -ForegroundColor DarkGray
-			Write-Host $path -ForegroundColor Yellow
-		}
-
-		Write-Host ""
-		$choice = Read-Host "Enter your choice (1-$($matchedAliases.Count))"
-		if ([string]::IsNullOrEmpty($choice)) {
-			Write-Host "No selection made. No action taken." -ForegroundColor Red
-		}
-		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
-			$selectedAlias = $matchedAliases[[int]$choice - 1].Alias
-			$path = $matchedAliases[[int]$choice - 1].Path
-			if (Test-Path $path) {
-				Write-Host "Navigating to '$selectedAlias' -> '$path'." -ForegroundColor Green
-				Set-Location $path
-			}
-			else {
-				Write-Host "The path '$path' for alias '$selectedAlias' does not exist." -ForegroundColor Red
-			}
-			return $selectedAlias
 		}
 		else {
-			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
+				return "NO_MATCH"
 		}
-	}
-	else {
-		Write-Host "No similar aliases found for '$aliasInput'." -ForegroundColor Red
-	}
-	return $null
 }
 
 
@@ -677,7 +671,7 @@ _____/\\\\\\\\\\\\___________________________________________
 			if ($Global:DirectoryAliases.ContainsKey($Alias)) {
 				$path = $Global:DirectoryAliases[$Alias]
 				if (Test-Path $path) {
-					Write-Host "Exact match found. Navigating to '$Alias' -> '$path'." -ForegroundColor Green
+					Write-Host "Navigating to '$Alias' -> '$path'." -ForegroundColor Green
 					Set-Location $path
 				}
 				else {
@@ -685,10 +679,9 @@ _____/\\\\\\\\\\\\___________________________________________
 				}
 			}
 			else {
-				$selectedAlias = _goto_print_similar -aliasInput $Alias
-				if (-not $selectedAlias) {
+				$result = _goto_print_similar -aliasInput $Alias
+				if ($result -eq "NO_MATCH") {
 					Write-Host "No matching alias found for '$Alias'." -ForegroundColor Red
-					Write-Host "Usage: goto [ <alias> | -r <alias> <path> | -u <alias> | -l | -x <alias> | -c | -p <alias> | -o | -v | -h | -Update ]" -ForegroundColor Yellow
 				}
 			}
 		}
@@ -702,7 +695,6 @@ Initialize-GotoEnvironment
 $updateCheckJob = Start-Job -ScriptBlock {
 	param($GotoDataPath, $UpdateInfoFile)
 
-	# I import the module inside the Job
 	Import-Module Goto
 
 	if (Test-Path $UpdateInfoFile) {
