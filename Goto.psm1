@@ -398,21 +398,43 @@ function goto {
 			}
 		}
 		'List' {
-			if ($Global:DirectoryAliases.Count -eq 0) {
-				Write-Host "No aliases registered." -ForegroundColor Yellow
-			}
-			else {
-				$aliases = $Global:DirectoryAliases.GetEnumerator() |
-				Where-Object { $null -ne $_.Key -and $null -ne $_.Value } |
-				Sort-Object Name
+			try {
+				if ($null -eq $Global:DirectoryAliases) {
+					Write-Host "The global alias dictionary is null. Initializing it." -ForegroundColor Yellow
+					$Global:DirectoryAliases = @{}
+				}
+
+				if ($Global:DirectoryAliases.Count -eq 0) {
+					Write-Host "No aliases registered." -ForegroundColor Yellow
+					return
+				}
+
+				Write-Host "Total aliases before filtering: $($Global:DirectoryAliases.Count)" -ForegroundColor Cyan
+
+				$aliases = @()
+				foreach ($entry in $Global:DirectoryAliases.GetEnumerator()) {
+					if ($null -ne $entry.Key -and $null -ne $entry.Value) {
+						$aliases += [PSCustomObject]@{
+							Key   = $entry.Key.ToString()
+							Value = $entry.Value.ToString()
+						}
+					}
+					else {
+						Write-Host "Skipping invalid entry: Key = $($entry.Key), Value = $($entry.Value)" -ForegroundColor Yellow
+					}
+				}
+
+				$aliases = $aliases | Sort-Object Key
+
+				Write-Host "Valid aliases after filtering: $($aliases.Count)" -ForegroundColor Cyan
 
 				if ($aliases.Count -eq 0) {
 					Write-Host "No valid aliases found." -ForegroundColor Yellow
 					return
 				}
 
-				$maxAliasLength = ($aliases | ForEach-Object { $_.Key.ToString().Length } | Measure-Object -Maximum).Maximum
-				$maxPathLength = ($aliases | ForEach-Object { $_.Value.ToString().Length } | Measure-Object -Maximum).Maximum
+				$maxAliasLength = ($aliases | ForEach-Object { $_.Key.Length } | Measure-Object -Maximum).Maximum
+				$maxPathLength = ($aliases | ForEach-Object { $_.Value.Length } | Measure-Object -Maximum).Maximum
 				$headerLength = 4 + $maxAliasLength + 4 + $maxPathLength
 				$separatorLine = "-" * $headerLength
 
@@ -420,8 +442,8 @@ function goto {
 				Write-Host $separatorLine -ForegroundColor DarkGray
 
 				foreach ($alias in $aliases) {
-					$aliasDisplay = $alias.Key.ToString().PadRight($maxAliasLength)
-					$pathDisplay = $alias.Value.ToString().PadRight($maxPathLength)
+					$aliasDisplay = $alias.Key.PadRight($maxAliasLength)
+					$pathDisplay = $alias.Value.PadRight($maxPathLength)
 					Write-Host "  " -NoNewline
 					Write-Host $aliasDisplay -ForegroundColor Green -NoNewline
 					Write-Host " -> " -ForegroundColor DarkGray -NoNewline
@@ -429,6 +451,12 @@ function goto {
 				}
 
 				Write-Host $separatorLine -ForegroundColor DarkGray
+			}
+			catch {
+				Write-Host "An error occurred while listing aliases:" -ForegroundColor Red
+				Write-Host $_.Exception.Message -ForegroundColor Red
+				Write-Host "Stack Trace:" -ForegroundColor Red
+				Write-Host $_.ScriptStackTrace -ForegroundColor Red
 			}
 		}
 		'Expand' {
