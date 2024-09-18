@@ -237,17 +237,21 @@ function _goto_print_similar {
 		return 0
 	}
 
-	$matchedAliases = $Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
-		$alias = $_.Key
+	$matchedAliases = New-Object System.Collections.ArrayList
+
+	foreach ($entry in $Global:DirectoryAliases.GetEnumerator()) {
+		$alias = $entry.Key
 		$score = Get-MatchScore -alias $alias -searchTerm $normalizedInput
 		if ($score -gt 0) {
-			[PSCustomObject]@{
-				Alias = $alias
-				Path  = $_.Value
-				Score = $score
-			}
+			$null = $matchedAliases.Add(@{
+					Alias = $alias
+					Path  = $entry.Value
+					Score = $score
+				})
 		}
-	} | Sort-Object -Property Score -Descending
+	}
+
+	$matchedAliases = $matchedAliases | Sort-Object { $_.Score } -Descending
 
 	if ($matchedAliases.Count -eq 1) {
 		$selectedAlias = $matchedAliases[0].Alias
@@ -291,12 +295,10 @@ function _goto_print_similar {
 			Set-Location $path
 			return $selectedAlias
 		}
-		else {
-			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
-		}
 	}
 	return $null
 }
+
 
 function goto {
 	[CmdletBinding(DefaultParameterSetName = 'Navigate')]
