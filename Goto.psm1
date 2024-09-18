@@ -320,197 +320,204 @@ function _goto_print_similar {
 			}
 			return $selectedAlias
 		}
-		return $null
+		else {
+			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
+		}
 	}
+	else {
+		Write-Host "No similar aliases found for '$aliasInput'." -ForegroundColor Red
+	}
+	return $null
+}
 
 
-	function goto {
-		[CmdletBinding(DefaultParameterSetName = 'Navigate')]
-		param(
-			[Parameter(ParameterSetName = 'Navigate', Position = 0)]
-			[Parameter(ParameterSetName = 'Unregister', Position = 1)]
-			[Parameter(ParameterSetName = 'Expand', Position = 1)]
-			[Parameter(ParameterSetName = 'Push', Position = 1)]
-			[Parameter(ParameterSetName = 'Register', Position = 1)]
-			[string]$Alias,
+function goto {
+	[CmdletBinding(DefaultParameterSetName = 'Navigate')]
+	param(
+		[Parameter(ParameterSetName = 'Navigate', Position = 0)]
+		[Parameter(ParameterSetName = 'Unregister', Position = 1)]
+		[Parameter(ParameterSetName = 'Expand', Position = 1)]
+		[Parameter(ParameterSetName = 'Push', Position = 1)]
+		[Parameter(ParameterSetName = 'Register', Position = 1)]
+		[string]$Alias,
 
-			[Parameter(ParameterSetName = 'Register', Mandatory = $true)]
-			[Alias('r')]
-			[switch]$Register,
+		[Parameter(ParameterSetName = 'Register', Mandatory = $true)]
+		[Alias('r')]
+		[switch]$Register,
 
-			[Parameter(ParameterSetName = 'Unregister', Mandatory = $true)]
-			[Alias('u')]
-			[switch]$Unregister,
+		[Parameter(ParameterSetName = 'Unregister', Mandatory = $true)]
+		[Alias('u')]
+		[switch]$Unregister,
 
-			[Parameter(ParameterSetName = 'Push', Mandatory = $true)]
-			[Alias('p')]
-			[switch]$Push,
+		[Parameter(ParameterSetName = 'Push', Mandatory = $true)]
+		[Alias('p')]
+		[switch]$Push,
 
-			[Parameter(ParameterSetName = 'Pop', Mandatory = $true)]
-			[Alias('o')]
-			[switch]$Pop,
+		[Parameter(ParameterSetName = 'Pop', Mandatory = $true)]
+		[Alias('o')]
+		[switch]$Pop,
 
-			[Parameter(ParameterSetName = 'List', Mandatory = $true)]
-			[Alias('l')]
-			[switch]$List,
+		[Parameter(ParameterSetName = 'List', Mandatory = $true)]
+		[Alias('l')]
+		[switch]$List,
 
-			[Parameter(ParameterSetName = 'Expand', Mandatory = $true)]
-			[Alias('x')]
-			[switch]$Expand,
+		[Parameter(ParameterSetName = 'Expand', Mandatory = $true)]
+		[Alias('x')]
+		[switch]$Expand,
 
-			[Parameter(ParameterSetName = 'Cleanup', Mandatory = $true)]
-			[Alias('c')]
-			[switch]$Cleanup,
+		[Parameter(ParameterSetName = 'Cleanup', Mandatory = $true)]
+		[Alias('c')]
+		[switch]$Cleanup,
 
-			[Parameter(ParameterSetName = 'Help', Mandatory = $true)]
-			[Alias('h')]
-			[switch]$Help,
+		[Parameter(ParameterSetName = 'Help', Mandatory = $true)]
+		[Alias('h')]
+		[switch]$Help,
 
-			[Parameter(ParameterSetName = 'Update', Mandatory = $true)]
-			[switch]$Update,
+		[Parameter(ParameterSetName = 'Update', Mandatory = $true)]
+		[switch]$Update,
 
-			[Parameter(ParameterSetName = 'Version', Mandatory = $true)]
-			[Alias('v')]
-			[switch]$Version,
+		[Parameter(ParameterSetName = 'Version', Mandatory = $true)]
+		[Alias('v')]
+		[switch]$Version,
 
-			[Parameter(ParameterSetName = 'Register', Position = 2)]
-			[Parameter(ParameterSetName = 'Navigate', Position = 1)]
-			[string]$Path
-		)
+		[Parameter(ParameterSetName = 'Register', Position = 2)]
+		[Parameter(ParameterSetName = 'Navigate', Position = 1)]
+		[string]$Path
+	)
 
-		switch ($PSCmdlet.ParameterSetName) {
-			'Register' {
-				if (-not [string]::IsNullOrWhiteSpace($Alias) -and -not [string]::IsNullOrWhiteSpace($Path)) {
-					if (Test-Path $Path) {
-						$resolvedPath = Resolve-Path -Path $Path | Select-Object -ExpandProperty Path
-						$Global:DirectoryAliases[$Alias] = $resolvedPath
-						New-Item -Path Function:\ -Name "Global:$Alias" -Value { Set-Location $resolvedPath } | Out-Null
-						Write-Host "Alias '$Alias' registered for path '$resolvedPath'." -ForegroundColor Green
-						Save-Aliases
-					}
-					else {
-						Write-Host "The specified path does not exist." -ForegroundColor Red
-					}
-				}
-				else {
-					Write-Host "Alias name or path not specified. Usage: goto -r <alias_name> <path>" -ForegroundColor Yellow
-				}
-			}
-			'Unregister' {
-				if (-not $Alias) {
-					Write-Host "Usage: goto u <alias>" -ForegroundColor Yellow
-					return
-				}
-
-				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
-					$selectedAlias = $Alias
-				}
-				else {
-					$selectedAlias = _goto_print_similar -aliasInput $Alias -action "unregister" -SuppressNavigation
-				}
-
-				if ($selectedAlias) {
-					Write-Host "Are you sure you want to unregister the alias '$selectedAlias' which points to '$($Global:DirectoryAliases[$selectedAlias])'? [Y/N]: " -ForegroundColor Yellow -NoNewline
-					$confirmation = Read-Host
-					if ($confirmation -eq 'Y') {
-						$Global:DirectoryAliases.Remove($selectedAlias)
-						Remove-Item -Path "Function:$selectedAlias" -ErrorAction SilentlyContinue
-						Write-Host "Alias '$selectedAlias' unregistered." -ForegroundColor Green
-						Save-Aliases
-					}
-					else {
-						Write-Host "Unregistration cancelled." -ForegroundColor Yellow
-					}
-				}
-			}
-			'List' {
-				try {
-					if ($Global:DirectoryAliases.Count -eq 0) {
-						Write-Host "No aliases registered." -ForegroundColor Yellow
-						return
-					}
-					$maxAliasLength = ($Global:DirectoryAliases.Keys | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
-					$maxPathLength = ($Global:DirectoryAliases.Values | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
-					Write-Host "`nRegistered Aliases:" -ForegroundColor Cyan
-					$separatorLine = "-" * (4 + $maxAliasLength + 4 + $maxPathLength)
-					Write-Host $separatorLine -ForegroundColor DarkGray
-					$Global:DirectoryAliases.GetEnumerator() | Sort-Object Name | ForEach-Object {
-						$aliasDisplay = $_.Key.PadRight($maxAliasLength)
-						$pathDisplay = $_.Value.PadRight($maxPathLength)
-						Write-Host "  " -NoNewline
-						Write-Host $aliasDisplay -NoNewline -ForegroundColor Green
-						Write-Host " -> " -NoNewline -ForegroundColor DarkGray
-						Write-Host $pathDisplay -ForegroundColor Yellow
-					}
-					Write-Host $separatorLine -ForegroundColor DarkGray
-				}
-				catch {
-					Write-Host "An error occurred while listing aliases. Please try again or contact support if the issue persists." -ForegroundColor Red
-				}
-			}
-			'Expand' {
-				if (-not $Alias) {
-					Write-Host "Usage: goto x <alias>" -ForegroundColor Yellow
-					return
-				}
-
-				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
-					$selectedAlias = $Alias
-					$path = $Global:DirectoryAliases[$Alias]
-				}
-				else {
-					$selectedAlias = _goto_print_similar -aliasInput $Alias -action "expand" -SuppressNavigation
-				}
-
-				if ($selectedAlias) {
-					$path = $Global:DirectoryAliases[$selectedAlias]
-					Write-Host "Alias: " -ForegroundColor Cyan -NoNewline
-					Write-Host "$selectedAlias" -ForegroundColor Green
-					Write-Host "Path:  " -ForegroundColor Cyan -NoNewline
-					Write-Host "$path" -ForegroundColor Yellow
-					if (Test-Path $path) {
-						Write-Host "Status:" -ForegroundColor Cyan -NoNewline
-						Write-Host " Path exists" -ForegroundColor Green
-					}
-					else {
-						Write-Host "Status:" -ForegroundColor Cyan -NoNewline
-						Write-Host " Path does not exist" -ForegroundColor Red
-					}
-				}
-				else {
-					Write-Host "No matching alias found for '$Alias'." -ForegroundColor Red
-				}
-			}
-			'Cleanup' {
-				$invalidAliases = $Global:DirectoryAliases.GetEnumerator() | Where-Object { -not (Test-Path $_.Value) }
-
-				if ($invalidAliases.Count -eq 0) {
-					Write-Host "All aliases point to valid paths. No cleanup needed." -ForegroundColor Green
-					return
-				}
-
-				Write-Host "The following aliases point to non-existent paths:" -ForegroundColor Yellow
-				foreach ($invalidAlias in $invalidAliases) {
-					Write-Host "  $($invalidAlias.Key) -> $($invalidAlias.Value)" -ForegroundColor Red
-				}
-
-				$confirmation = Read-Host "Do you want to remove these aliases? [Y/N]"
-				if ($confirmation -eq 'Y') {
-					foreach ($invalidAlias in $invalidAliases) {
-						$Global:DirectoryAliases.Remove($invalidAlias.Key)
-						Remove-Item -Path "Function:$($invalidAlias.Key)" -ErrorAction SilentlyContinue
-						Write-Host "Removed alias '$($invalidAlias.Key)'." -ForegroundColor Green
-					}
+	switch ($PSCmdlet.ParameterSetName) {
+		'Register' {
+			if (-not [string]::IsNullOrWhiteSpace($Alias) -and -not [string]::IsNullOrWhiteSpace($Path)) {
+				if (Test-Path $Path) {
+					$resolvedPath = Resolve-Path -Path $Path | Select-Object -ExpandProperty Path
+					$Global:DirectoryAliases[$Alias] = $resolvedPath
+					New-Item -Path Function:\ -Name "Global:$Alias" -Value { Set-Location $resolvedPath } | Out-Null
+					Write-Host "Alias '$Alias' registered for path '$resolvedPath'." -ForegroundColor Green
 					Save-Aliases
-					Write-Host "Cleanup complete. Removed $(($invalidAliases | Measure-Object).Count) invalid aliases." -ForegroundColor Green
 				}
 				else {
-					Write-Host "Cleanup cancelled. No aliases were removed." -ForegroundColor Yellow
+					Write-Host "The specified path does not exist." -ForegroundColor Red
 				}
 			}
-			'Help' {
-				function Show-Help {
-					$gotoAsciiArt = @"
+			else {
+				Write-Host "Alias name or path not specified. Usage: goto -r <alias_name> <path>" -ForegroundColor Yellow
+			}
+		}
+		'Unregister' {
+			if (-not $Alias) {
+				Write-Host "Usage: goto u <alias>" -ForegroundColor Yellow
+				return
+			}
+
+			if ($Global:DirectoryAliases.ContainsKey($Alias)) {
+				$selectedAlias = $Alias
+			}
+			else {
+				$selectedAlias = _goto_print_similar -aliasInput $Alias -action "unregister" -SuppressNavigation
+			}
+
+			if ($selectedAlias) {
+				Write-Host "Are you sure you want to unregister the alias '$selectedAlias' which points to '$($Global:DirectoryAliases[$selectedAlias])'? [Y/N]: " -ForegroundColor Yellow -NoNewline
+				$confirmation = Read-Host
+				if ($confirmation -eq 'Y') {
+					$Global:DirectoryAliases.Remove($selectedAlias)
+					Remove-Item -Path "Function:$selectedAlias" -ErrorAction SilentlyContinue
+					Write-Host "Alias '$selectedAlias' unregistered." -ForegroundColor Green
+					Save-Aliases
+				}
+				else {
+					Write-Host "Unregistration cancelled." -ForegroundColor Yellow
+				}
+			}
+		}
+		'List' {
+			try {
+				if ($Global:DirectoryAliases.Count -eq 0) {
+					Write-Host "No aliases registered." -ForegroundColor Yellow
+					return
+				}
+				$maxAliasLength = ($Global:DirectoryAliases.Keys | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
+				$maxPathLength = ($Global:DirectoryAliases.Values | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
+				Write-Host "`nRegistered Aliases:" -ForegroundColor Cyan
+				$separatorLine = "-" * (4 + $maxAliasLength + 4 + $maxPathLength)
+				Write-Host $separatorLine -ForegroundColor DarkGray
+				$Global:DirectoryAliases.GetEnumerator() | Sort-Object Name | ForEach-Object {
+					$aliasDisplay = $_.Key.PadRight($maxAliasLength)
+					$pathDisplay = $_.Value.PadRight($maxPathLength)
+					Write-Host "  " -NoNewline
+					Write-Host $aliasDisplay -NoNewline -ForegroundColor Green
+					Write-Host " -> " -NoNewline -ForegroundColor DarkGray
+					Write-Host $pathDisplay -ForegroundColor Yellow
+				}
+				Write-Host $separatorLine -ForegroundColor DarkGray
+			}
+			catch {
+				Write-Host "An error occurred while listing aliases. Please try again or contact support if the issue persists." -ForegroundColor Red
+			}
+		}
+		'Expand' {
+			if (-not $Alias) {
+				Write-Host "Usage: goto x <alias>" -ForegroundColor Yellow
+				return
+			}
+
+			if ($Global:DirectoryAliases.ContainsKey($Alias)) {
+				$selectedAlias = $Alias
+				$path = $Global:DirectoryAliases[$Alias]
+			}
+			else {
+				$selectedAlias = _goto_print_similar -aliasInput $Alias -action "expand" -SuppressNavigation
+			}
+
+			if ($selectedAlias) {
+				$path = $Global:DirectoryAliases[$selectedAlias]
+				Write-Host "Alias: " -ForegroundColor Cyan -NoNewline
+				Write-Host "$selectedAlias" -ForegroundColor Green
+				Write-Host "Path:  " -ForegroundColor Cyan -NoNewline
+				Write-Host "$path" -ForegroundColor Yellow
+				if (Test-Path $path) {
+					Write-Host "Status:" -ForegroundColor Cyan -NoNewline
+					Write-Host " Path exists" -ForegroundColor Green
+				}
+				else {
+					Write-Host "Status:" -ForegroundColor Cyan -NoNewline
+					Write-Host " Path does not exist" -ForegroundColor Red
+				}
+			}
+			else {
+				Write-Host "No matching alias found for '$Alias'." -ForegroundColor Red
+			}
+		}
+		'Cleanup' {
+			$invalidAliases = $Global:DirectoryAliases.GetEnumerator() | Where-Object { -not (Test-Path $_.Value) }
+
+			if ($invalidAliases.Count -eq 0) {
+				Write-Host "All aliases point to valid paths. No cleanup needed." -ForegroundColor Green
+				return
+			}
+
+			Write-Host "The following aliases point to non-existent paths:" -ForegroundColor Yellow
+			foreach ($invalidAlias in $invalidAliases) {
+				Write-Host "  $($invalidAlias.Key) -> $($invalidAlias.Value)" -ForegroundColor Red
+			}
+
+			$confirmation = Read-Host "Do you want to remove these aliases? [Y/N]"
+			if ($confirmation -eq 'Y') {
+				foreach ($invalidAlias in $invalidAliases) {
+					$Global:DirectoryAliases.Remove($invalidAlias.Key)
+					Remove-Item -Path "Function:$($invalidAlias.Key)" -ErrorAction SilentlyContinue
+					Write-Host "Removed alias '$($invalidAlias.Key)'." -ForegroundColor Green
+				}
+				Save-Aliases
+				Write-Host "Cleanup complete. Removed $(($invalidAliases | Measure-Object).Count) invalid aliases." -ForegroundColor Green
+			}
+			else {
+				Write-Host "Cleanup cancelled. No aliases were removed." -ForegroundColor Yellow
+			}
+		}
+		'Help' {
+			function Show-Help {
+				$gotoAsciiArt = @"
 _____/\\\\\\\\\\\\___________________________________________
  ___/\\\//////////____________________________________________
   __/\\\_______________________________/\\\____________________
@@ -521,168 +528,167 @@ _____/\\\\\\\\\\\\___________________________________________
        _\//\\\\\\\\\\\\/___\///\\\\\/______\//\\\\\____\///\\\\\/___
         __\////////////_______\/////_________\/////_______\/////_____
 "@
-					$lines = $gotoAsciiArt -split "`n"
+				$lines = $gotoAsciiArt -split "`n"
 
-					function Write-ColoredChar {
-						param($char, $color)
-						if ($char -eq '_') {
-							Write-Host $char -ForegroundColor DarkGray -NoNewline
-						}
-						else {
-							Write-Host $char -ForegroundColor $color -NoNewline
-						}
-					}
-
-					$colors = @{
-						DR = [System.ConsoleColor]::DarkMagenta
-						R  = [System.ConsoleColor]::Red
-						DG = [System.ConsoleColor]::DarkGreen
-						G  = [System.ConsoleColor]::Green
-						DY = [System.ConsoleColor]::DarkYellow
-						Y  = [System.ConsoleColor]::Yellow
-						DC = [System.ConsoleColor]::DarkBlue
-						C  = [System.ConsoleColor]::Cyan
-					}
-
-					$colorPatterns = @(
-						@("DR", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R"),
-						@("DR", "R", "R", "R", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR"),
-						@("DR", "R", "R", "R", "DG", "G", "G", "G"),
-						@("DR", "DR", "R", "R", "R", "DR", "R", "R", "R", "R", "R", "R", "R", "DY", "Y", "Y", "Y", "Y", "Y", "DG", "G", "G", "G", "G", "G", "G", "G", "G", "G", "G", "G", "DC", "C", "C", "C", "C", "C"),
-						@("DR", "DR", "R", "R", "R", "DR", "DR", "DR", "DR", "DR", "DR", "R", "R", "R", "DY", "Y", "Y", "Y", "DY", "DY", "DY", "Y", "Y", "Y", "DG", "DG", "DG", "DG", "DG", "G", "G", "G", "DG", "DG", "DG", "DG", "DC", "C", "C", "C", "DC", "DC", "DC", "C", "C", "C"),
-						@("DR", "DR", "R", "R", "R", "DR", "DR", "R", "R", "R", "DY", "Y", "Y", "Y", "DY", "DY", "DY", "Y", "Y", "Y", "DG", "DG", "G", "G", "G", "DC", "C", "C", "C", "DC", "DC", "DC", "C", "C", "C"),
-						@("DR", "DR", "R", "R", "R", "DR", "DR", "R", "R", "R", "DY", "DY", "DY", "Y", "Y", "Y", "DY", "Y", "Y", "Y", "DG", "DG", "G", "G", "G", "DG", "G", "G", "DC", "DC", "DC", "C", "C", "C", "DC", "C", "C", "C"),
-						@("DR", "DR", "DR", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "DR", "DY", "DY", "DY", "DY", "Y", "Y", "Y", "Y", "Y", "DY", "DG", "DG", "DG", "G", "G", "G", "G", "G", "DC", "DC", "DC", "DC", "C", "C", "C", "C", "C", "DC"),
-						@("DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DY", "DY", "DY", "DY", "DY", "DY", "DG", "DG", "DG", "DG", "DG", "DG", "DC", "DC", "DC", "DC", "DC", "DC")
-					)
-
-					for ($i = 0; $i -lt $lines.Count; $i++) {
-						$line = $lines[$i]
-						$pattern = $colorPatterns[$i]
-						$colorIndex = 0
-
-						foreach ($char in $line.ToCharArray()) {
-							if ($char -eq '_') {
-								Write-ColoredChar $char "DarkGray"
-							}
-							elseif ($char -in '/', '\', '*') {
-								Write-ColoredChar $char $colors[$pattern[$colorIndex]]
-								$colorIndex = ($colorIndex + 1) % $pattern.Count
-							}
-							else {
-								Write-Host $char -NoNewline
-							}
-						}
-						Write-Host ""
-					}
-
-					Write-Host "`nUsage: " -ForegroundColor Cyan -NoNewline
-					Write-Host "goto [<option>] <alias> [<directory>]`n" -ForegroundColor White
-
-					Write-Host "Default usage:" -ForegroundColor Cyan
-					Write-Host "  goto <alias> " -ForegroundColor Yellow -NoNewline
-					Write-Host "- changes to the directory registered for the given alias`n" -ForegroundColor White
-
-					Write-Host "Partial Alias Matching:" -ForegroundColor Cyan
-					Write-Host "  You can use partial aliases. For example, if you have an alias 'documents'," -ForegroundColor White
-					Write-Host "  you can use 'goto doc' to match it. If multiple aliases match, you'll be" -ForegroundColor White
-					Write-Host "  prompted to choose the correct one.`n" -ForegroundColor White
-
-					Write-Host "OPTIONS:" -ForegroundColor Cyan
-					$options = @(
-						@{Option = "-r, -Register"; Desc = "registers an alias"; Usage = "goto -r|-Register <alias> <directory>" },
-						@{Option = "-u, -Unregister"; Desc = "unregisters an alias"; Usage = "goto -u|-Unregister <alias>" },
-						@{Option = "-p, -Push"; Desc = "pushes the current directory onto the stack, then performs goto"; Usage = "goto -p|-Push <alias>" },
-						@{Option = "-o, -Pop"; Desc = "pops the top directory from the stack, then changes to that directory"; Usage = "goto -o|-Pop" },
-						@{Option = "-l, -List"; Desc = "lists aliases"; Usage = "goto -l|-List" },
-						@{Option = "-x, -Expand"; Desc = "expands an alias"; Usage = "goto -x|-Expand <alias>" },
-						@{Option = "-c, -Cleanup"; Desc = "cleans up non existent directory aliases"; Usage = "goto -c|-Cleanup" },
-						@{Option = "-h, -Help"; Desc = "prints this help"; Usage = "goto -h|-Help" },
-						@{Option = "-v, -Version"; Desc = "displays the version of the goto module"; Usage = "goto -v|-Version" },
-						@{Option = "-Update"; Desc = "updates the goto module"; Usage = "goto -Update" }
-					)
-
-					foreach ($opt in $options) {
-						Write-Host "  $($opt.Option)" -ForegroundColor Green
-						Write-Host "    $($opt.Desc)" -ForegroundColor White
-						Write-Host "    Usage: " -ForegroundColor DarkGray -NoNewline
-						Write-Host "$($opt.Usage)`n" -ForegroundColor Yellow
-					}
-				}
-				Show-Help
-			}
-
-			'Push' {
-				$currentPath = (Get-Location).Path
-				Push-Location
-
-				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
-					$path = $Global:DirectoryAliases[$Alias]
-					Write-Host "Pushed current directory '$currentPath' to stack and moved to alias '$Alias' at path '$path'." -ForegroundColor Green
-					Set-Location $path
-				}
-				else {
-					if (-not [string]::IsNullOrWhiteSpace($Alias)) {
-						$selectedAlias = _goto_print_similar -aliasInput $Alias -SuppressNavigation
-						if ($selectedAlias) {
-							$path = $Global:DirectoryAliases[$selectedAlias]
-							Write-Host "Pushed current directory '$currentPath' to stack and moved to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
-							Set-Location $path
-						}
-						else {
-							Pop-Location
-							Write-Host "No matching alias found. Current directory was not changed." -ForegroundColor Yellow
-						}
+				function Write-ColoredChar {
+					param($char, $color)
+					if ($char -eq '_') {
+						Write-Host $char -ForegroundColor DarkGray -NoNewline
 					}
 					else {
-						Write-Host "Pushed current directory '$currentPath' to stack." -ForegroundColor Yellow
+						Write-Host $char -ForegroundColor $color -NoNewline
 					}
 				}
-			}
-			'Pop' {
-				if ((Get-Location -Stack).Count -eq 0) {
-					Write-Host "The location stack is empty." -ForegroundColor Yellow
-					return
+
+				$colors = @{
+					DR = [System.ConsoleColor]::DarkMagenta
+					R  = [System.ConsoleColor]::Red
+					DG = [System.ConsoleColor]::DarkGreen
+					G  = [System.ConsoleColor]::Green
+					DY = [System.ConsoleColor]::DarkYellow
+					Y  = [System.ConsoleColor]::Yellow
+					DC = [System.ConsoleColor]::DarkBlue
+					C  = [System.ConsoleColor]::Cyan
 				}
-				$previousPath = (Get-Location).Path
-				Pop-Location
-				$newPath = (Get-Location).Path
-				if ($previousPath -ne $newPath) {
-					Write-Host "Popped and moved from '$previousPath' to '$newPath'." -ForegroundColor Green
+
+				$colorPatterns = @(
+					@("DR", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R"),
+					@("DR", "R", "R", "R", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR"),
+					@("DR", "R", "R", "R", "DG", "G", "G", "G"),
+					@("DR", "DR", "R", "R", "R", "DR", "R", "R", "R", "R", "R", "R", "R", "DY", "Y", "Y", "Y", "Y", "Y", "DG", "G", "G", "G", "G", "G", "G", "G", "G", "G", "G", "G", "DC", "C", "C", "C", "C", "C"),
+					@("DR", "DR", "R", "R", "R", "DR", "DR", "DR", "DR", "DR", "DR", "R", "R", "R", "DY", "Y", "Y", "Y", "DY", "DY", "DY", "Y", "Y", "Y", "DG", "DG", "DG", "DG", "DG", "G", "G", "G", "DG", "DG", "DG", "DG", "DC", "C", "C", "C", "DC", "DC", "DC", "C", "C", "C"),
+					@("DR", "DR", "R", "R", "R", "DR", "DR", "R", "R", "R", "DY", "Y", "Y", "Y", "DY", "DY", "DY", "Y", "Y", "Y", "DG", "DG", "G", "G", "G", "DC", "C", "C", "C", "DC", "DC", "DC", "C", "C", "C"),
+					@("DR", "DR", "R", "R", "R", "DR", "DR", "R", "R", "R", "DY", "DY", "DY", "Y", "Y", "Y", "DY", "Y", "Y", "Y", "DG", "DG", "G", "G", "G", "DG", "G", "G", "DC", "DC", "DC", "C", "C", "C", "DC", "C", "C", "C"),
+					@("DR", "DR", "DR", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "R", "DR", "DY", "DY", "DY", "DY", "Y", "Y", "Y", "Y", "Y", "DY", "DG", "DG", "DG", "G", "G", "G", "G", "G", "DC", "DC", "DC", "DC", "C", "C", "C", "C", "C", "DC"),
+					@("DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DR", "DY", "DY", "DY", "DY", "DY", "DY", "DG", "DG", "DG", "DG", "DG", "DG", "DC", "DC", "DC", "DC", "DC", "DC")
+				)
+
+				for ($i = 0; $i -lt $lines.Count; $i++) {
+					$line = $lines[$i]
+					$pattern = $colorPatterns[$i]
+					$colorIndex = 0
+
+					foreach ($char in $line.ToCharArray()) {
+						if ($char -eq '_') {
+							Write-ColoredChar $char "DarkGray"
+						}
+						elseif ($char -in '/', '\', '*') {
+							Write-ColoredChar $char $colors[$pattern[$colorIndex]]
+							$colorIndex = ($colorIndex + 1) % $pattern.Count
+						}
+						else {
+							Write-Host $char -NoNewline
+						}
+					}
+					Write-Host ""
 				}
-				else {
-					Write-Host "Already at the bottom of the location stack." -ForegroundColor Yellow
+
+				Write-Host "`nUsage: " -ForegroundColor Cyan -NoNewline
+				Write-Host "goto [<option>] <alias> [<directory>]`n" -ForegroundColor White
+
+				Write-Host "Default usage:" -ForegroundColor Cyan
+				Write-Host "  goto <alias> " -ForegroundColor Yellow -NoNewline
+				Write-Host "- changes to the directory registered for the given alias`n" -ForegroundColor White
+
+				Write-Host "Partial Alias Matching:" -ForegroundColor Cyan
+				Write-Host "  You can use partial aliases. For example, if you have an alias 'documents'," -ForegroundColor White
+				Write-Host "  you can use 'goto doc' to match it. If multiple aliases match, you'll be" -ForegroundColor White
+				Write-Host "  prompted to choose the correct one.`n" -ForegroundColor White
+
+				Write-Host "OPTIONS:" -ForegroundColor Cyan
+				$options = @(
+					@{Option = "-r, -Register"; Desc = "registers an alias"; Usage = "goto -r|-Register <alias> <directory>" },
+					@{Option = "-u, -Unregister"; Desc = "unregisters an alias"; Usage = "goto -u|-Unregister <alias>" },
+					@{Option = "-p, -Push"; Desc = "pushes the current directory onto the stack, then performs goto"; Usage = "goto -p|-Push <alias>" },
+					@{Option = "-o, -Pop"; Desc = "pops the top directory from the stack, then changes to that directory"; Usage = "goto -o|-Pop" },
+					@{Option = "-l, -List"; Desc = "lists aliases"; Usage = "goto -l|-List" },
+					@{Option = "-x, -Expand"; Desc = "expands an alias"; Usage = "goto -x|-Expand <alias>" },
+					@{Option = "-c, -Cleanup"; Desc = "cleans up non existent directory aliases"; Usage = "goto -c|-Cleanup" },
+					@{Option = "-h, -Help"; Desc = "prints this help"; Usage = "goto -h|-Help" },
+					@{Option = "-v, -Version"; Desc = "displays the version of the goto module"; Usage = "goto -v|-Version" },
+					@{Option = "-Update"; Desc = "updates the goto module"; Usage = "goto -Update" }
+				)
+
+				foreach ($opt in $options) {
+					Write-Host "  $($opt.Option)" -ForegroundColor Green
+					Write-Host "    $($opt.Desc)" -ForegroundColor White
+					Write-Host "    Usage: " -ForegroundColor DarkGray -NoNewline
+					Write-Host "$($opt.Usage)`n" -ForegroundColor Yellow
 				}
 			}
-			'Version' {
-				$moduleInfo = Get-Module Goto
-				$moduleVersion = $moduleInfo.Version.ToString()
-				Write-Host "goto version $moduleVersion"
+			Show-Help
+		}
+
+		'Push' {
+			$currentPath = (Get-Location).Path
+			Push-Location
+
+			if ($Global:DirectoryAliases.ContainsKey($Alias)) {
+				$path = $Global:DirectoryAliases[$Alias]
+				Write-Host "Pushed current directory '$currentPath' to stack and moved to alias '$Alias' at path '$path'." -ForegroundColor Green
+				Set-Location $path
 			}
-			'Update' {
-				Update-GotoModule
-			}
-			'Navigate' {
-				if (-not $Alias) {
-					Show-Help
-					return
-				}
-				if ($Global:DirectoryAliases.ContainsKey($Alias)) {
-					$path = $Global:DirectoryAliases[$Alias]
-					if (Test-Path $path) {
-						Write-Host "Exact match found. Navigating to '$Alias' -> '$path'." -ForegroundColor Green
+			else {
+				if (-not [string]::IsNullOrWhiteSpace($Alias)) {
+					$selectedAlias = _goto_print_similar -aliasInput $Alias -SuppressNavigation
+					if ($selectedAlias) {
+						$path = $Global:DirectoryAliases[$selectedAlias]
+						Write-Host "Pushed current directory '$currentPath' to stack and moved to alias '$selectedAlias' at path '$path'." -ForegroundColor Green
 						Set-Location $path
 					}
 					else {
-						Write-Host "The path '$path' for alias '$Alias' does not exist." -ForegroundColor Red
+						Pop-Location
+						Write-Host "No matching alias found. Current directory was not changed." -ForegroundColor Yellow
 					}
 				}
 				else {
-					$selectedAlias = _goto_print_similar -aliasInput $Alias
-					if (-not $selectedAlias) {
-						Write-Host "No matching alias found for '$Alias'." -ForegroundColor Red
-						Write-Host "Usage: goto [ <alias> | -r <alias> <path> | -u <alias> | -l | -x <alias> | -c | -p <alias> | -o | -v | -h | -Update ]" -ForegroundColor Yellow
-					}
+					Write-Host "Pushed current directory '$currentPath' to stack." -ForegroundColor Yellow
+				}
+			}
+		}
+		'Pop' {
+			if ((Get-Location -Stack).Count -eq 0) {
+				Write-Host "The location stack is empty." -ForegroundColor Yellow
+				return
+			}
+			$previousPath = (Get-Location).Path
+			Pop-Location
+			$newPath = (Get-Location).Path
+			if ($previousPath -ne $newPath) {
+				Write-Host "Popped and moved from '$previousPath' to '$newPath'." -ForegroundColor Green
+			}
+			else {
+				Write-Host "Already at the bottom of the location stack." -ForegroundColor Yellow
+			}
+		}
+		'Version' {
+			$moduleInfo = Get-Module Goto
+			$moduleVersion = $moduleInfo.Version.ToString()
+			Write-Host "goto version $moduleVersion"
+		}
+		'Update' {
+			Update-GotoModule
+		}
+		'Navigate' {
+			if (-not $Alias) {
+				Show-Help
+				return
+			}
+			if ($Global:DirectoryAliases.ContainsKey($Alias)) {
+				$path = $Global:DirectoryAliases[$Alias]
+				if (Test-Path $path) {
+					Write-Host "Exact match found. Navigating to '$Alias' -> '$path'." -ForegroundColor Green
+					Set-Location $path
+				}
+				else {
+					Write-Host "The path '$path' for alias '$Alias' does not exist." -ForegroundColor Red
+				}
+			}
+			else {
+				$selectedAlias = _goto_print_similar -aliasInput $Alias
+				if (-not $selectedAlias) {
+					Write-Host "No matching alias found for '$Alias'." -ForegroundColor Red
+					Write-Host "Usage: goto [ <alias> | -r <alias> <path> | -u <alias> | -l | -x <alias> | -c | -p <alias> | -o | -v | -h | -Update ]" -ForegroundColor Yellow
 				}
 			}
 		}
