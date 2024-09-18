@@ -1,6 +1,6 @@
 @{
 	RootModule        = 'Goto.psm1'
-	ModuleVersion     = '1.9.3'
+	ModuleVersion     = '1.9.4'
 	GUID              = '504b4162-e8df-5f67-b999-3f46ac2fa586'
 	Author            = 'Re•MART'
 	Description       = 'Easily manage and navigate to your frequently used directories using simple aliases.'
@@ -13,7 +13,7 @@
 			License      = 'MIT'
 			ReadmeFile   = 'README.md'
 			ProjectUri   = 'https://github.com/Ranamzes/goto-powershell'
-			ReleaseNotes = 'Fix list func againe'
+			ReleaseNotes = 'Fix list func'
 		}
 	}
 }
