@@ -214,22 +214,21 @@ function _goto_print_similar {
 		$alias = $alias.ToLower()
 		$score = 0
 		$lastIndex = -1
-		$matchedAll = $true
+		$matchedChars = 0
 
 		for ($i = 0; $i -lt $searchTerm.Length; $i++) {
 			$index = $alias.IndexOf($searchTerm[$i], $lastIndex + 1)
-			if ($index -eq -1) {
-				$matchedAll = $false
-				break
+			if ($index -ne -1) {
+				$score += 100 - $index
+				if ($index -eq $lastIndex + 1) {
+					$score += 50
+				}
+				$lastIndex = $index
+				$matchedChars++
 			}
-			$score += 100 - $index
-			if ($index -eq $lastIndex + 1) {
-				$score += 50
-			}
-			$lastIndex = $index
 		}
 
-		if ($matchedAll) {
+		if ($matchedChars -eq $searchTerm.Length) {
 			if ($alias.StartsWith($searchTerm)) {
 				$score += 1000
 			}
@@ -282,7 +281,12 @@ function _goto_print_similar {
 			$paddedAlias = $alias.PadRight($maxAliasLength)
 			$paddedNumber = ($i + 1).ToString().PadLeft($numberWidth)
 
-			Write-Host "[$paddedNumber]: $paddedAlias -> $path"
+			Write-Host "[" -NoNewline -ForegroundColor DarkGray
+			Write-Host $paddedNumber -NoNewline -ForegroundColor Cyan
+			Write-Host "]:" -NoNewline -ForegroundColor DarkGray
+			Write-Host " $paddedAlias" -NoNewline -ForegroundColor Green
+			Write-Host " -> " -NoNewline -ForegroundColor DarkGray
+			Write-Host $path -ForegroundColor Yellow
 		}
 
 		Write-Host ""
@@ -302,12 +306,6 @@ function _goto_print_similar {
 			}
 			return $selectedAlias
 		}
-		else {
-			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
-		}
-	}
-	else {
-		Write-Host "No similar aliases found for '$aliasInput'." -ForegroundColor Red
 	}
 	return $null
 }
@@ -418,20 +416,19 @@ function goto {
 					Write-Host "No aliases registered." -ForegroundColor Yellow
 					return
 				}
-
 				$maxAliasLength = ($Global:DirectoryAliases.Keys | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
 				$maxPathLength = ($Global:DirectoryAliases.Values | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
-
 				Write-Host "`nRegistered Aliases:" -ForegroundColor Cyan
 				$separatorLine = "-" * (4 + $maxAliasLength + 4 + $maxPathLength)
 				Write-Host $separatorLine -ForegroundColor DarkGray
-
 				$Global:DirectoryAliases.GetEnumerator() | Sort-Object Name | ForEach-Object {
 					$aliasDisplay = $_.Key.PadRight($maxAliasLength)
 					$pathDisplay = $_.Value.PadRight($maxPathLength)
-					Write-Host "  $aliasDisplay -> $pathDisplay" -ForegroundColor Yellow
+					Write-Host "  " -NoNewline
+					Write-Host $aliasDisplay -NoNewline -ForegroundColor Green
+					Write-Host " -> " -NoNewline -ForegroundColor DarkGray
+					Write-Host $pathDisplay -ForegroundColor Yellow
 				}
-
 				Write-Host $separatorLine -ForegroundColor DarkGray
 			}
 			catch {
