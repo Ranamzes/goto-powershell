@@ -204,7 +204,10 @@ function _goto_print_similar {
 		[switch]$SuppressNavigation
 	)
 
+	Write-Host "Debug: Function started with input: $aliasInput" -ForegroundColor Cyan
+
 	$normalizedInput = $aliasInput.ToLower()
+	Write-Host "Debug: Normalized input: $normalizedInput" -ForegroundColor Cyan
 
 	function Get-MatchScore {
 		param (
@@ -240,10 +243,13 @@ function _goto_print_similar {
 
 	$matchedAliases = New-Object System.Collections.ArrayList
 
+	Write-Host "Debug: Total aliases in Global:DirectoryAliases: $($Global:DirectoryAliases.Count)" -ForegroundColor Cyan
 	foreach ($entry in $Global:DirectoryAliases.GetEnumerator()) {
 		$alias = $entry.Key
 		$path = $entry.Value
+		Write-Host "Debug: Processing alias: '$alias' -> '$path'" -ForegroundColor Cyan
 		$score = Get-MatchScore -alias $alias -searchTerm $normalizedInput
+		Write-Host "Debug: Score for '$alias': $score" -ForegroundColor Cyan
 		if ($score -gt 0) {
 			$null = $matchedAliases.Add([PSCustomObject]@{
 					Alias = $alias
@@ -253,11 +259,13 @@ function _goto_print_similar {
 		}
 	}
 
+	Write-Host "Debug: Matched aliases count: $($matchedAliases.Count)" -ForegroundColor Cyan
 	$matchedAliases = $matchedAliases | Sort-Object -Property Score -Descending
 
 	if ($matchedAliases.Count -eq 1) {
 		$selectedAlias = $matchedAliases[0].Alias
 		$path = $matchedAliases[0].Path
+		Write-Host "Debug: Single match found. Alias: '$selectedAlias', Path: '$path'" -ForegroundColor Cyan
 		if (-not $SuppressNavigation) {
 			if (Test-Path $path) {
 				Write-Host "Only one matching alias found: '$selectedAlias' -> '$path'. Navigating..." -ForegroundColor Green
@@ -279,6 +287,7 @@ function _goto_print_similar {
 		for ($i = 0; $i -lt $matchedAliases.Count; $i++) {
 			$alias = $matchedAliases[$i].Alias
 			$path = $matchedAliases[$i].Path
+			Write-Host "Debug: Processing match $($i+1): Alias: '$alias', Path: '$path'" -ForegroundColor Cyan
 			$paddedAlias = $alias.PadRight($maxAliasLength)
 			$paddedNumber = ($i + 1).ToString().PadLeft($numberWidth)
 
@@ -292,12 +301,14 @@ function _goto_print_similar {
 
 		Write-Host ""
 		$choice = Read-Host "Enter your choice (1-$($matchedAliases.Count))"
+		Write-Host "Debug: User choice: $choice" -ForegroundColor Cyan
 		if ([string]::IsNullOrWhiteSpace($choice)) {
 			Write-Host "No selection made. No action taken." -ForegroundColor Red
 		}
 		elseif ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $matchedAliases.Count) {
 			$selectedAlias = $matchedAliases[[int]$choice - 1].Alias
 			$path = $matchedAliases[[int]$choice - 1].Path
+			Write-Host "Debug: Selected: Alias: '$selectedAlias', Path: '$path'" -ForegroundColor Cyan
 			if (Test-Path $path) {
 				Write-Host "Navigating to '$selectedAlias' -> '$path'." -ForegroundColor Green
 				Set-Location $path
@@ -310,6 +321,9 @@ function _goto_print_similar {
 		else {
 			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
 		}
+	}
+	else {
+		Write-Host "No similar aliases found for '$aliasInput'." -ForegroundColor Red
 	}
 	return $null
 }
@@ -655,12 +669,14 @@ _____/\\\\\\\\\\\\___________________________________________
 			Update-GotoModule
 		}
 		'Navigate' {
+			Write-Host "Debug: Navigate case started. Alias: '$Alias'" -ForegroundColor Cyan
 			if (-not $Alias) {
 				Show-Help
 				return
 			}
 			if ($Global:DirectoryAliases.ContainsKey($Alias)) {
 				$path = $Global:DirectoryAliases[$Alias]
+				Write-Host "Debug: Exact match found. Alias: '$Alias', Path: '$path'" -ForegroundColor Cyan
 				if (Test-Path $path) {
 					Write-Host "Exact match found. Navigating to '$Alias' -> '$path'." -ForegroundColor Green
 					Set-Location $path
@@ -670,12 +686,18 @@ _____/\\\\\\\\\\\\___________________________________________
 				}
 			}
 			else {
+				Write-Host "Debug: No exact match found. Calling _goto_print_similar" -ForegroundColor Cyan
 				$selectedAlias = _goto_print_similar -aliasInput $Alias
-				if (-not $selectedAlias) {
+				if ($selectedAlias) {
+					Write-Host "Debug: _goto_print_similar returned: $selectedAlias" -ForegroundColor Cyan
+					# Navigation is handled within _goto_print_similar, so we don't need to do anything here
+				}
+				else {
 					Write-Host "No matching alias found for '$Alias'." -ForegroundColor Red
 					Write-Host "Usage: goto [ <alias> | -r <alias> <path> | -u <alias> | -l | -x <alias> | -c | -p <alias> | -o | -v | -h | -Update ]" -ForegroundColor Yellow
 				}
 			}
+			Write-Host "Debug: Navigate case completed" -ForegroundColor Cyan
 		}
 	}
 }
