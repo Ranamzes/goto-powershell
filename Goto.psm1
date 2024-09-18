@@ -212,37 +212,50 @@ function _goto_print_similar {
 		[switch]$SuppressNavigation
 	)
 	$normalizedInput = $aliasInput.ToLower()
-	$matchingAliases = $Global:DirectoryAliases.Keys | Where-Object {
-		$alias = $_.ToLower()
-		$alias.StartsWith($normalizedInput) -or ($alias -replace '[^a-z0-9]', '') -like "*$($normalizedInput -replace '[^a-z0-9]', '')*"
+
+	function Get-MatchScore {
+		param (
+			[string]$alias,
+			[string]$searchTerm
+		)
+		$alias = $alias.ToLower()
+		$score = 0
+		$lastIndex = -1
+		$matchedAll = $true
+
+		for ($i = 0; $i -lt $searchTerm.Length; $i++) {
+			$index = $alias.IndexOf($searchTerm[$i], $lastIndex + 1)
+			if ($index -eq -1) {
+				$matchedAll = $false
+				break
+			}
+			$score += 100 - $index
+			if ($index -eq $lastIndex + 1) {
+				$score += 50
+			}
+			$lastIndex = $index
+		}
+
+		if ($matchedAll) {
+			if ($alias.StartsWith($searchTerm)) {
+				$score += 1000
+			}
+			return $score
+		}
+		return 0
 	}
-	$matchedAliases = $matchingAliases | ForEach-Object {
-		$alias = $_
-		$score = if ($alias.ToLower().StartsWith($normalizedInput)) {
-			1000 + (100 - ($alias.Length - $normalizedInput.Length))
-		}
-		elseif (($alias -replace '[^a-z0-9]', '') -like "*$($normalizedInput -replace '[^a-z0-9]', '')*") {
-			500 + (($alias -replace '[^a-z0-9]', '').IndexOf(($normalizedInput -replace '[^a-z0-9]', '')))
-		}
-		else {
-			0
-		}
-		[PSCustomObject]@{
-			Alias = $alias
-			Path  = $Global:DirectoryAliases[$alias]
-			Score = $score
+
+	$matchedAliases = $Global:DirectoryAliases.GetEnumerator() | ForEach-Object {
+		$alias = $_.Key
+		$score = Get-MatchScore -alias $alias -searchTerm $normalizedInput
+		if ($score -gt 0) {
+			[PSCustomObject]@{
+				Alias = $alias
+				Path  = $_.Value
+				Score = $score
+			}
 		}
 	} | Sort-Object -Property Score -Descending
-
-	if ($matchedAliases.Count -eq 1) {
-		$selectedAlias = $matchedAliases[0].Alias
-		$path = $matchedAliases[0].Path
-		if (-not $SuppressNavigation) {
-			Write-Host "Only one matching alias found: '$selectedAlias' -> '$path'. Navigating..." -ForegroundColor Green
-			Set-Location $path
-		}
-		return $selectedAlias
-	}
 
 	if ($matchedAliases.Count -eq 1) {
 		$selectedAlias = $matchedAliases[0].Alias
@@ -274,7 +287,7 @@ function _goto_print_similar {
 			Write-Host $path -ForegroundColor Yellow
 		}
 
-		Write-Host "" # Additional indentation before selection
+		Write-Host ""
 		$choice = Read-Host "Enter your choice (1-$($matchedAliases.Count))"
 		if ([string]::IsNullOrWhiteSpace($choice)) {
 			Write-Host "No selection made. No action taken." -ForegroundColor Red
@@ -289,9 +302,6 @@ function _goto_print_similar {
 		else {
 			Write-Host "Invalid selection. No action taken." -ForegroundColor Red
 		}
-	}
-	else {
-		Write-Host "No similar aliases found for '$aliasInput'." -ForegroundColor Red
 	}
 	return $null
 }
@@ -400,19 +410,27 @@ function goto {
 				Write-Host "No aliases registered." -ForegroundColor Yellow
 			}
 			else {
-				$maxAliasLength = ($Global:DirectoryAliases.Keys | Measure-Object -Maximum -Property Length).Maximum
-				$maxPathLength = ($Global:DirectoryAliases.Values | Measure-Object -Maximum -Property Length).Maximum
+				$aliases = $Global:DirectoryAliases.GetEnumerator() | Sort-Object Name
+
+				$maxAliasLength = ($aliases | ForEach-Object { $_.Key.Length } | Measure-Object -Maximum).Maximum
+				$maxPathLength = ($aliases | ForEach-Object { $_.Value.Length } | Measure-Object -Maximum).Maximum
+
+				$headerLength = 4 + $maxAliasLength + 4 + $maxPathLength
+				$separatorLine = "-" * $headerLength
+
 				Write-Host "`nRegistered Aliases:" -ForegroundColor Cyan
-				Write-Host ("-" * (4 + $maxAliasLength + 4 + $maxPathLength)) -ForegroundColor DarkGray
-				$Global:DirectoryAliases.GetEnumerator() | Sort-Object Name | ForEach-Object {
-					$aliasDisplay = $_.Key.PadRight($maxAliasLength)
-					$pathDisplay = $_.Value.PadRight($maxPathLength)
+				Write-Host $separatorLine -ForegroundColor DarkGray
+
+				foreach ($alias in $aliases) {
+					$aliasDisplay = $alias.Key.PadRight($maxAliasLength)
+					$pathDisplay = $alias.Value.PadRight($maxPathLength)
 					Write-Host "  " -NoNewline
 					Write-Host $aliasDisplay -ForegroundColor Green -NoNewline
 					Write-Host " -> " -ForegroundColor DarkGray -NoNewline
 					Write-Host $pathDisplay -ForegroundColor Yellow
 				}
-				Write-Host ("-" * (4 + $maxAliasLength + 4 + $maxPathLength)) -ForegroundColor DarkGray
+
+				Write-Host $separatorLine -ForegroundColor DarkGray
 			}
 		}
 		'Expand' {
@@ -652,7 +670,6 @@ _____/\\\\\\\\\\\\___________________________________________
 				}
 				elseif ($selectedAlias -ne $Alias) {
 					$path = $Global:DirectoryAliases[$selectedAlias]
-					Write-Host "Navigating to closest match: '$selectedAlias' -> '$path'." -ForegroundColor Green
 					Set-Location $path
 				}
 			}
